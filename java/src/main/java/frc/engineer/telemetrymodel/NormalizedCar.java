@@ -10,6 +10,7 @@ public class NormalizedCar {
     public String name;
     public Integer teamId;
     public Integer yourTelemetry;
+    public Boolean aiControlled;
 
     public Integer position;
     public Integer currentLapNum;

@@ -106,6 +106,7 @@ type CarSetupData struct {
 	FrontWing              uint8   `json:"frontWing,omitempty"`
 	RearWing               uint8   `json:"rearWing,omitempty"`
 	OnThrottle             uint8   `json:"onThrottle,omitempty"`
+	DiffOnThrottle         uint8   `json:"diffOnThrottle,omitempty"`
 	OffThrottle            uint8   `json:"offThrottle,omitempty"`
 	FrontCamber            float32 `json:"frontCamber,omitempty"`
 	RearCamber             float32 `json:"rearCamber,omitempty"`

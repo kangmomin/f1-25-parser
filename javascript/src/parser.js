@@ -109,6 +109,7 @@ function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showER
     name: participant?.name ?? null,
     teamId: participant?.teamId ?? null,
     yourTelemetry: participant?.yourTelemetry ?? null,
+    aiControlled: participant?.aiControlled ?? null,
     position: lap?.position ?? null,
     currentLapNum: lap?.currentLapNum ?? null,
     lapDistance: lap?.lapDistance ?? null,
@@ -147,7 +148,7 @@ function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showER
     bestSector1Ms: history?.bestSector1Ms ?? null,
     bestSector2Ms: history?.bestSector2Ms ?? null,
     bestSector3Ms: history?.bestSector3Ms ?? null,
-    tireCompound: source?.normalized?.tireCompound ?? null,
+    tireCompound: resolveTireCompound(source, status),
     availableSets: buildTyreSetBriefs(tyreSets, source),
     stintHistory: source?.normalized?.stintHistory ?? [],
     dynamics: source?.normalized?.dynamics ?? [],
@@ -199,7 +200,7 @@ function filterCarSetups(packet, participants, playerCarIndex) {
   return {
     ...packet,
     carSetups: packet.carSetups.map((setup, index) =>
-      canExposeSelfOrAi(index, playerCarIndex, participants) ? setup : {},
+      canExposeSelfOrAi(index, playerCarIndex, participants) ? normalizeSetup(setup) : {},
     ),
   };
 }
@@ -256,6 +257,34 @@ function canExposeSelfOrAi(carIndex, playerCarIndex, participants) {
     return true;
   }
   return participants?.participants?.[carIndex]?.aiControlled === true;
+}
+
+function normalizeSetup(setup) {
+  if (setup?.onThrottle != null) {
+    return {
+      ...setup,
+      diffOnThrottle: setup.onThrottle,
+    };
+  }
+  if (setup?.diffOnThrottle != null) {
+    return {
+      ...setup,
+      onThrottle: setup.diffOnThrottle,
+    };
+  }
+  return { ...setup };
+}
+
+function resolveTireCompound(source, status) {
+  if (source?.normalized?.tireCompound) {
+    return source.normalized.tireCompound;
+  }
+  const actual = status?.actualTyreCompound;
+  const visual = status?.visualTyreCompound;
+  if (actual == null && visual == null) {
+    return null;
+  }
+  return `actual:${actual ?? 0}/visual:${visual ?? 0}`;
 }
 
 function buildTyreSetBriefs(tyreSets, source) {

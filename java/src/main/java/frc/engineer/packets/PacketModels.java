@@ -103,6 +103,7 @@ public final class PacketModels {
         public Integer frontWing;
         public Integer rearWing;
         public Integer onThrottle;
+        public Integer diffOnThrottle;
         public Integer offThrottle;
         public Float frontCamber;
         public Float rearCamber;

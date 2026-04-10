@@ -85,6 +85,7 @@ export interface CarSetupData {
     frontWing?: number;
     rearWing?: number;
     onThrottle?: number;
+    diffOnThrottle?: number;
     offThrottle?: number;
     frontCamber?: number;
     rearCamber?: number;

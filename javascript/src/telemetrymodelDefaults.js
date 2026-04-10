@@ -7,6 +7,7 @@ function normalizedCar(target, init = {}) {
   target.name = null;
   target.teamId = null;
   target.yourTelemetry = null;
+  target.aiControlled = null;
   target.position = null;
   target.currentLapNum = null;
   target.lapDistance = null;

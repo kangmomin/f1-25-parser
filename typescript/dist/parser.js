@@ -83,6 +83,7 @@ function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showER
         name: participant?.name,
         teamId: participant?.teamId,
         yourTelemetry: participant?.yourTelemetry,
+        aiControlled: participant?.aiControlled,
         position: lap?.position,
         currentLapNum: lap?.currentLapNum,
         lapDistance: lap?.lapDistance,
@@ -124,7 +125,7 @@ function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showER
         availableSets: buildTyreSetBriefs(tyreSets, source),
         stintHistory: source?.normalized.stintHistory,
         dynamics: source?.normalized.dynamics,
-        tireCompound: source?.normalized.tireCompound,
+        tireCompound: resolveTireCompound(source, status),
         ersEstimatePct: source?.normalized.ersEstimatePct,
         ersEstimateReady: source?.normalized.ersEstimateReady,
     };
@@ -159,7 +160,7 @@ function filterCarSetups(packet, participants, playerCarIndex) {
     }
     return {
         ...packet,
-        carSetups: packet.carSetups.map((setup, index) => canExposeSelfOrAi(index, playerCarIndex, participants) ? setup : {}),
+        carSetups: packet.carSetups.map((setup, index) => canExposeSelfOrAi(index, playerCarIndex, participants) ? normalizeSetup(setup) : {}),
     };
 }
 function filterCarStatus(packet, mode, playerCarIndex) {
@@ -211,6 +212,32 @@ function canExposeSelfOrAi(carIndex, playerCarIndex, participants) {
         return true;
     }
     return participants?.participants?.[carIndex]?.aiControlled === true;
+}
+function normalizeSetup(setup) {
+    if (setup.onThrottle !== undefined) {
+        return {
+            ...setup,
+            diffOnThrottle: setup.onThrottle,
+        };
+    }
+    if (setup.diffOnThrottle !== undefined) {
+        return {
+            ...setup,
+            onThrottle: setup.diffOnThrottle,
+        };
+    }
+    return { ...setup };
+}
+function resolveTireCompound(source, status) {
+    if (source?.normalized.tireCompound) {
+        return source.normalized.tireCompound;
+    }
+    const actual = status?.actualTyreCompound;
+    const visual = status?.visualTyreCompound;
+    if (actual === undefined && visual === undefined) {
+        return undefined;
+    }
+    return `actual:${actual ?? 0}/visual:${visual ?? 0}`;
 }
 function compactDamage(damage) {
     return {

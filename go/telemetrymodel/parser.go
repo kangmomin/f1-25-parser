@@ -1,6 +1,7 @@
 package telemetrymodel
 
 import (
+	"fmt"
 	"time"
 
 	"frc.pitwall.parser/telemetry-go/dto"
@@ -173,6 +174,7 @@ func buildNormalizedCar(
 		out.Name = participant.Name
 		out.TeamID = participant.TeamID
 		out.YourTelemetry = participant.YourTelemetry
+		out.AiControlled = participant.AiControlled
 	}
 	if lap != nil {
 		out.Position = lap.Position
@@ -211,6 +213,7 @@ func buildNormalizedCar(
 		out.SurfaceType = telemetry.SurfaceType
 		out.DRSActivated = telemetry.DRS != 0
 	}
+	out.TireCompound = resolveTireCompound(source, status)
 	if status != nil {
 		out.ActualTyreCompound = status.ActualTyreCompound
 		out.TireAge = status.TireAge
@@ -300,7 +303,7 @@ func filterCarSetups(in *packets.PacketCarSetupData, participants *packets.Packe
 	out := &packets.PacketCarSetupData{CarSetups: make([]packets.CarSetupData, len(in.CarSetups))}
 	for i, setup := range in.CarSetups {
 		if shouldExposeSelfOrAI(playerIndex, hasPlayer, i, participants) {
-			out.CarSetups[i] = setup
+			out.CarSetups[i] = normalizeSetup(setup)
 		}
 	}
 	return out
@@ -367,6 +370,29 @@ func shouldExposeSelfOrAI(playerIndex uint8, hasPlayer bool, carIndex int, parti
 		return false
 	}
 	return participants.Participants[carIndex].AiControlled
+}
+
+func normalizeSetup(setup packets.CarSetupData) packets.CarSetupData {
+	out := setup
+	if out.OnThrottle != 0 {
+		out.DiffOnThrottle = out.OnThrottle
+	} else if out.DiffOnThrottle != 0 {
+		out.OnThrottle = out.DiffOnThrottle
+	}
+	return out
+}
+
+func resolveTireCompound(source *CarEnvelope, status *packets.CarStatusData) string {
+	if source != nil && source.Normalized.TireCompound != "" {
+		return source.Normalized.TireCompound
+	}
+	if status == nil {
+		return ""
+	}
+	if status.ActualTyreCompound == 0 && status.VisualTyreCompound == 0 {
+		return ""
+	}
+	return fmt.Sprintf("actual:%d/visual:%d", status.ActualTyreCompound, status.VisualTyreCompound)
 }
 
 func participantAt(data *packets.PacketParticipantsData, carIndex int) *packets.ParticipantData {

@@ -5,6 +5,7 @@ export interface NormalizedCar {
     name?: string;
     teamId?: number;
     yourTelemetry?: number;
+    aiControlled?: boolean;
     position?: number;
     currentLapNum?: number;
     lapDistance?: number;

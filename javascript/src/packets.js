@@ -126,6 +126,7 @@ export class CarSetupData {
     this.frontWing = null;
     this.rearWing = null;
     this.onThrottle = null;
+    this.diffOnThrottle = null;
     this.offThrottle = null;
     this.frontCamber = null;
     this.rearCamber = null;

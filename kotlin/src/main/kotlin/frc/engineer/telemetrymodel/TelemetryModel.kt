@@ -63,6 +63,7 @@ data class NormalizedCar(
     val name: String? = null,
     val teamId: Int? = null,
     val yourTelemetry: Int? = null,
+    val aiControlled: Boolean? = null,
     val position: Int? = null,
     val currentLapNum: Int? = null,
     val lapDistance: Float? = null,

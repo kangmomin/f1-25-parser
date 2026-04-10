@@ -126,6 +126,7 @@ public final class TelemetryParser {
         out.name = participant != null ? participant.name : null;
         out.teamId = participant != null ? participant.teamId : null;
         out.yourTelemetry = participant != null ? participant.yourTelemetry : null;
+        out.aiControlled = participant != null ? participant.aiControlled : null;
         out.position = lap != null ? lap.position : null;
         out.currentLapNum = lap != null ? lap.currentLapNum : null;
         out.lapDistance = lap != null ? lap.lapDistance : null;
@@ -164,7 +165,7 @@ public final class TelemetryParser {
         out.bestSector1Ms = history != null ? history.bestSector1Ms : null;
         out.bestSector2Ms = history != null ? history.bestSector2Ms : null;
         out.bestSector3Ms = history != null ? history.bestSector3Ms : null;
-        out.tireCompound = source != null && source.normalized != null ? source.normalized.tireCompound : null;
+        out.tireCompound = resolveTireCompound(source, status);
         out.stintHistory = source != null && source.normalized != null ? source.normalized.stintHistory : new ArrayList<>();
         out.dynamics = source != null && source.normalized != null ? source.normalized.dynamics : new ArrayList<>();
         out.availableSets = buildTyreSetBriefs(tyreSets, source);
@@ -213,7 +214,7 @@ public final class TelemetryParser {
         PacketModels.PacketCarSetupData output = new PacketModels.PacketCarSetupData();
         for (int i = 0; i < input.carSetups.size(); i++) {
             output.carSetups.add(canExposeSelfOrAi(i, playerCarIndex, participants)
-                    ? input.carSetups.get(i)
+                    ? normalizeSetup(input.carSetups.get(i))
                     : new PacketModels.CarSetupData());
         }
         return output;
@@ -295,6 +296,48 @@ public final class TelemetryParser {
         output.ersHarvestedMGUH = input.ersHarvestedMGUH;
         output.ersDeployedThisLap = input.ersDeployedThisLap;
         return output;
+    }
+
+    private static PacketModels.CarSetupData normalizeSetup(PacketModels.CarSetupData input) {
+        PacketModels.CarSetupData output = new PacketModels.CarSetupData();
+        output.frontWing = input.frontWing;
+        output.rearWing = input.rearWing;
+        output.onThrottle = input.onThrottle != null ? input.onThrottle : input.diffOnThrottle;
+        output.diffOnThrottle = output.onThrottle;
+        output.offThrottle = input.offThrottle;
+        output.frontCamber = input.frontCamber;
+        output.rearCamber = input.rearCamber;
+        output.frontToe = input.frontToe;
+        output.rearToe = input.rearToe;
+        output.frontSuspension = input.frontSuspension;
+        output.rearSuspension = input.rearSuspension;
+        output.frontAntiRollBar = input.frontAntiRollBar;
+        output.rearAntiRollBar = input.rearAntiRollBar;
+        output.frontSuspensionHeight = input.frontSuspensionHeight;
+        output.rearSuspensionHeight = input.rearSuspensionHeight;
+        output.brakePressure = input.brakePressure;
+        output.brakeBias = input.brakeBias;
+        output.rearLeftTyrePressure = input.rearLeftTyrePressure;
+        output.rearRightTyrePressure = input.rearRightTyrePressure;
+        output.frontLeftTyrePressure = input.frontLeftTyrePressure;
+        output.frontRightTyrePressure = input.frontRightTyrePressure;
+        output.ballast = input.ballast;
+        output.fuelLoad = input.fuelLoad;
+        return output;
+    }
+
+    private static String resolveTireCompound(CarEnvelope source, PacketModels.CarStatusData status) {
+        if (source != null
+                && source.normalized != null
+                && source.normalized.tireCompound != null
+                && !source.normalized.tireCompound.isEmpty()) {
+            return source.normalized.tireCompound;
+        }
+        if (status == null || (status.actualTyreCompound == null && status.visualTyreCompound == null)) {
+            return null;
+        }
+        return "actual:" + (status.actualTyreCompound != null ? status.actualTyreCompound : 0)
+                + "/visual:" + (status.visualTyreCompound != null ? status.visualTyreCompound : 0);
     }
 
     private static boolean canExposePublicOrSelfForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {

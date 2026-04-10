@@ -15,6 +15,7 @@
 - [Kotlin](./kotlin/README.md)
 - [TypeScript](./typescript/README.md)
 - [JavaScript](./javascript/README.md)
+- [Versioning Policy](./VERSIONING.md)
 
 ## 포함 범위
 
@@ -75,6 +76,7 @@
   - `drsActivated`
   - `ersActualPct`, `ersEstimatePct`
   - 즉 현재 `FRC`는 `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 “ERS 퍼센트 + DRS 활성화 여부”를 더 노출
+  - FRC에서 바로 쓰는 주요 필드: `participants.name/teamId/yourTelemetry/aiControlled`, `lapData`의 랩/섹터/피트/간격/포지션 계열, `carStatus.tireCompound/tireAge/fuelRemainingLaps/brakeBias/ERS*`, `carDamage.tireWear/damage`, `carSetups.diffOnThrottle`, `session` 기본 메타데이터
 
 - 가시성 분류
   - `BOTH`: 항상 수신/노출 가능
@@ -87,7 +89,7 @@
 - 원본 `frc.engineer/internal/dto`, `frc.engineer/internal/packets` 정의가 없어서, 각 라이브러리는 스니펫을 컴파일 가능하게 만드는 최소 타입 집합을 포함합니다.
 - `restricted(strict)` 해석과 `PUBLIC_OR_SELF`, `SELF_OR_AI` 노출 규칙은 사용자가 준 주석을 그대로 따릅니다.
 - 실제 F1 22/23/25 전체 UDP 스펙 전체를 재현한 라이브러리는 아닙니다. 필요한 필드가 더 있으면 각 `packets` 모델에 확장하면 됩니다.
-- `FRC` 모드는 현재 `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 `ERS` 퍼센트와 `DRS` 활성화 여부를 더 노출합니다. 추후 사용자가 지정할 FRC 전용 필드/규칙을 더 넣을 수 있게 설정 타입도 열어두었습니다.
+- `FRC` 모드는 현재 `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 `ERS` 퍼센트, `DRS` 활성화 여부, `aiControlled`, `diffOnThrottle`, `tireCompound` 같은 FRC용 필드를 더 노출합니다. 추후 사용자가 지정할 FRC 전용 필드/규칙을 더 넣을 수 있게 설정 타입도 열어두었습니다.
 
 ## 검증
 

@@ -66,7 +66,7 @@ func main() {
 
 - `public`: `PUBLIC_OR_SELF` 필드를 모든 차량에 공개합니다.
 - `strict`: `PUBLIC_OR_SELF` 필드는 플레이어 차량만 공개합니다.
-- `frc`: `public`에서 보이는 데이터는 전부 포함하고, 추가로 `ERS` 퍼센트와 `DRSActivated`를 채웁니다.
+- `frc`: `public`에서 보이는 데이터는 전부 포함하고, 추가로 `ERS` 퍼센트와 `DRSActivated`, `aiControlled`, `diffOnThrottle`, `tireCompound` 같은 FRC용 필드를 채웁니다.
 
 ## 참고
 

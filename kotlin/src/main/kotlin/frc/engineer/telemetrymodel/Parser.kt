@@ -113,6 +113,7 @@ private fun buildNormalizedCar(
         name = participant?.name,
         teamId = participant?.teamId,
         yourTelemetry = participant?.yourTelemetry,
+        aiControlled = participant?.aiControlled,
         position = lap?.position,
         currentLapNum = lap?.currentLapNum,
         lapDistance = lap?.lapDistance,
@@ -146,7 +147,7 @@ private fun buildNormalizedCar(
         numUnservedDriveThroughs = lap?.numUnservedDriveThroughs,
         numUnservedStopGoPenalties = lap?.numUnservedStopGoPenalties,
         lapInvalid = lap?.lapInvalid,
-        tireCompound = source?.normalized?.tireCompound,
+        tireCompound = resolveTireCompound(source, status),
         actualTyreCompound = status?.actualTyreCompound,
         tireAge = status?.tireAge,
         fuelInTank = if (showPublicOrSelf) status?.fuelInTank else null,
@@ -183,7 +184,7 @@ private fun filterCarSetups(
     if (packet == null) return null
     return packet.copy(
         carSetups = packet.carSetups.mapIndexed { index, setup ->
-            if (canExposeSelfOrAi(index, playerCarIndex, participants)) setup else CarSetupData()
+            if (canExposeSelfOrAi(index, playerCarIndex, participants)) normalizeSetup(setup) else CarSetupData()
         },
     )
 }
@@ -248,6 +249,24 @@ private fun canExposeSelfOrAi(
 ): Boolean {
     if (playerCarIndex == carIndex) return true
     return participants?.participants?.getOrNull(carIndex)?.aiControlled == true
+}
+
+private fun normalizeSetup(setup: CarSetupData): CarSetupData {
+    val resolvedOnThrottle = setup.onThrottle ?: setup.diffOnThrottle
+    return setup.copy(
+        onThrottle = resolvedOnThrottle,
+        diffOnThrottle = resolvedOnThrottle,
+    )
+}
+
+private fun resolveTireCompound(source: CarEnvelope?, status: CarStatusData?): String? {
+    if (!source?.normalized?.tireCompound.isNullOrEmpty()) {
+        return source?.normalized?.tireCompound
+    }
+    if (status?.actualTyreCompound == null && status?.visualTyreCompound == null) {
+        return null
+    }
+    return "actual:${status?.actualTyreCompound ?: 0}/visual:${status?.visualTyreCompound ?: 0}"
 }
 
 private fun compactDamage(damage: CarDamageData?): CarDamage? {

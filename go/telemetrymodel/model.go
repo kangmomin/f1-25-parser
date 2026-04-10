@@ -51,6 +51,7 @@ type NormalizedCar struct {
 	Name          string `json:"name,omitempty"`
 	TeamID        int    `json:"teamId,omitempty"`
 	YourTelemetry uint8  `json:"yourTelemetry,omitempty"`
+	AiControlled  bool   `json:"aiControlled,omitempty"`
 
 	Position      int     `json:"position,omitempty"`
 	CurrentLapNum int     `json:"currentLapNum,omitempty"`

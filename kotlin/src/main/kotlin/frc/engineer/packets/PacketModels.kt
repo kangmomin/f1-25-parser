@@ -96,6 +96,7 @@ data class CarSetupData(
     val frontWing: Int? = null,
     val rearWing: Int? = null,
     val onThrottle: Int? = null,
+    val diffOnThrottle: Int? = null,
     val offThrottle: Int? = null,
     val frontCamber: Float? = null,
     val rearCamber: Float? = null,
