@@ -201,7 +201,7 @@ function filterCarDamage(packet, mode, playerCarIndex) {
     };
 }
 function canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex) {
-    return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);
+    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeERSPctForMode(mode, carIndex, playerCarIndex) {
     return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);

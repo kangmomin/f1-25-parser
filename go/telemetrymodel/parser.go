@@ -28,7 +28,7 @@ type ParseOptions struct {
 }
 
 // ParseEnvelope builds visibility-aware car views for public, strict, and frc modes.
-// FRC currently uses strict visibility as its baseline, plus ERS percentage and DRS activation.
+// FRC currently includes all public-visible data, plus ERS percentage and DRS activation.
 func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnvelope {
 	mode := normalizeParseMode(opts.Mode)
 	playerIndex, hasPlayer := resolvePlayerCarIndex(in.Header, opts)
@@ -346,7 +346,7 @@ func filterCarDamage(in *packets.PacketCarDamageData, mode ParseMode, playerInde
 }
 
 func shouldExposePublicOrSelf(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
-	if mode == ParseModePublic {
+	if mode == ParseModePublic || mode == ParseModeFRC {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)

@@ -244,7 +244,7 @@ function filterCarDamage(packet, mode, playerCarIndex) {
 }
 
 function canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex) {
-  return mode === ParseMode.PUBLIC || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeERSPctForMode(mode, carIndex, playerCarIndex) {

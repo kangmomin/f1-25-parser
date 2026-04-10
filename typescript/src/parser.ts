@@ -290,7 +290,7 @@ function canExposePublicOrSelfForMode(
   carIndex: number,
   playerCarIndex: number | null,
 ): boolean {
-  return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeERSPctForMode(

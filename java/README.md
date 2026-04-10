@@ -63,7 +63,7 @@ public class Example {
 
 - `ParseMode.PUBLIC`: public 가시성 기준으로 파싱합니다.
 - `ParseMode.STRICT`: 플레이어 차량 중심으로 민감 필드를 숨깁니다.
-- `ParseMode.FRC`: `STRICT`를 베이스로 하되 `ERS` 값과 `DRS` 활성화 여부를 추가 노출합니다.
+- `ParseMode.FRC`: `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 ERS 퍼센트와 `DRS` 활성화 여부를 노출합니다.
 
 ## 참고
 

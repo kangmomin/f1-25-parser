@@ -233,7 +233,7 @@ private fun canExposePublicOrSelfForMode(
     mode: ParseMode,
     carIndex: Int,
     playerCarIndex: Int?,
-): Boolean = mode == ParseMode.PUBLIC || playerCarIndex == carIndex
+): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
 
 private fun canExposeERSPctForMode(
     mode: ParseMode,
