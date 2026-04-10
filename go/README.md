@@ -66,7 +66,7 @@ func main() {
 
 - `public`: `PUBLIC_OR_SELF` 필드를 모든 차량에 공개합니다.
 - `strict`: `PUBLIC_OR_SELF` 필드는 플레이어 차량만 공개합니다.
-- `frc`: 현재는 `strict`와 동일하게 동작합니다. 나중에 `FRCConfig`에 규칙을 추가할 수 있습니다.
+- `frc`: `strict`를 베이스로 하되, 현재는 `ERS` 관련 값과 `DRSActivated`를 추가로 채웁니다.
 
 ## 참고
 

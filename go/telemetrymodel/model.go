@@ -66,6 +66,7 @@ type NormalizedCar struct {
 	TireInnerTemp   [4]uint8   `json:"tireInnerTemp,omitempty"`
 	TirePressure    [4]float32 `json:"tirePressure,omitempty"`
 	SurfaceType     [4]uint8   `json:"surfaceType,omitempty"`
+	DRSActivated    bool       `json:"drsActivated,omitempty"`
 
 	LastLapTime                float32 `json:"lastLapTime,omitempty"`
 	BestLapTime                float32 `json:"bestLapTime,omitempty"`

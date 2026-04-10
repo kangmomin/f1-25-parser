@@ -24,14 +24,13 @@ export class ParseOptions {
 
 export function parseEnvelope(input, options = new ParseOptions()) {
   const mode = normalizeMode(options.mode);
-  const effectiveMode = mode === ParseMode.FRC ? ParseMode.STRICT : mode;
   const playerCarIndex = options.playerCarIndex ?? input.header?.playerCarIndex ?? null;
   const sourceCars = new Map((input.cars ?? []).map((car) => [car.carIndex, car]));
   const output = new FullTelemetryEnvelope({
     ...input,
     carSetups: filterCarSetups(input.carSetups, input.participants, playerCarIndex),
-    carStatus: filterCarStatus(input.carStatus, effectiveMode, playerCarIndex),
-    carDamage: filterCarDamage(input.carDamage, effectiveMode, playerCarIndex),
+    carStatus: filterCarStatus(input.carStatus, mode, playerCarIndex),
+    carDamage: filterCarDamage(input.carDamage, mode, playerCarIndex),
     sessionHistoryByCar: { ...(input.sessionHistoryByCar ?? {}) },
     tyreSetsByCar: { ...(input.tyreSetsByCar ?? {}) },
     cars: [],
@@ -40,7 +39,7 @@ export function parseEnvelope(input, options = new ParseOptions()) {
   const carCount = detectCarCount(input);
   for (let carIndex = 0; carIndex < carCount; carIndex += 1) {
     output.cars.push(
-      buildCarEnvelope(output, carIndex, sourceCars.get(carIndex), effectiveMode, playerCarIndex),
+      buildCarEnvelope(output, carIndex, sourceCars.get(carIndex), mode, playerCarIndex),
     );
   }
   if (!output.capturedAt) {
@@ -78,6 +77,7 @@ function detectCarCount(input) {
 
 function buildCarEnvelope(envelope, carIndex, source, mode, playerCarIndex) {
   const showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex);
+  const showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex);
   const showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants);
 
   return new CarEnvelope({
@@ -91,11 +91,11 @@ function buildCarEnvelope(envelope, carIndex, source, mode, playerCarIndex) {
     damage: showPublicOrSelf ? envelope.carDamage?.carDamageData?.[carIndex] ?? null : null,
     history: envelope.sessionHistoryByCar?.[carIndex] ?? null,
     tyreSets: envelope.tyreSetsByCar?.[carIndex] ?? null,
-    normalized: buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSetup),
+    normalized: buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showERSPct, showSetup),
   });
 }
 
-function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSetup) {
+function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showERSPct, showSetup) {
   const participant = envelope.participants?.participants?.[carIndex];
   const lap = envelope.lapData?.lapData?.[carIndex];
   const telemetry = envelope.carTelemetry?.carTelemetryData?.[carIndex];
@@ -122,6 +122,7 @@ function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSe
     tireInnerTemp: telemetry?.tireInnerTemp ?? [0, 0, 0, 0],
     tirePressure: telemetry?.tirePressure ?? [0, 0, 0, 0],
     surfaceType: telemetry?.surfaceType ?? [0, 0, 0, 0],
+    drsActivated: telemetry?.drs != null ? telemetry.drs !== 0 : null,
     lastLapTime: lap?.lastLapTime ?? null,
     bestLapTime: lap?.bestLapTime ?? null,
     sector1TimeMs: lap?.sector1TimeMs ?? null,
@@ -165,8 +166,6 @@ function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSe
     normalized.ersDeployedThisLap = status?.ersDeployedThisLap ?? null;
     normalized.ersHarvestedMGUK = status?.ersHarvestedMGUK ?? null;
     normalized.ersHarvestedMGUH = status?.ersHarvestedMGUH ?? null;
-    normalized.ersActualPct = source?.normalized?.ersActualPct ?? null;
-    normalized.ersActualReady = source?.normalized?.ersActualReady ?? null;
     if (damage) {
       normalized.tireWear = damage.tireWear ?? [0, 0, 0, 0];
       normalized.damage = {
@@ -180,6 +179,11 @@ function buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSe
         engine: damage.engineDamage ?? null,
       };
     }
+  }
+
+  if (showERSPct) {
+    normalized.ersActualPct = source?.normalized?.ersActualPct ?? null;
+    normalized.ersActualReady = source?.normalized?.ersActualReady ?? null;
   }
 
   if (showSetup) {
@@ -212,16 +216,16 @@ function filterCarStatus(packet, mode, playerCarIndex) {
       }
       return {
         ...status,
-        fuelInTank: null,
-        fuelCapacity: null,
-        fuelRemainingLaps: null,
-        fuelMix: null,
-        brakeBias: null,
-        ersStoreEnergy: null,
-        ersDeployMode: null,
-        ersHarvestedMGUK: null,
-        ersHarvestedMGUH: null,
-        ersDeployedThisLap: null,
+        fuelInTank: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.fuelInTank : null,
+        fuelCapacity: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.fuelCapacity : null,
+        fuelRemainingLaps: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.fuelRemainingLaps : null,
+        fuelMix: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.fuelMix : null,
+        brakeBias: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.brakeBias : null,
+        ersStoreEnergy: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.ersStoreEnergy : null,
+        ersDeployMode: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.ersDeployMode : null,
+        ersHarvestedMGUK: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.ersHarvestedMGUK : null,
+        ersHarvestedMGUH: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.ersHarvestedMGUH : null,
+        ersDeployedThisLap: canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? status.ersDeployedThisLap : null,
       };
     }),
   };
@@ -241,6 +245,10 @@ function filterCarDamage(packet, mode, playerCarIndex) {
 
 function canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex) {
   return mode === ParseMode.PUBLIC || (playerCarIndex !== null && playerCarIndex === carIndex);
+}
+
+function canExposeERSPctForMode(mode, carIndex, playerCarIndex) {
+  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeSelfOrAi(carIndex, playerCarIndex, participants) {

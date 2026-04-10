@@ -28,7 +28,7 @@ type ParseOptions struct {
 }
 
 // ParseEnvelope builds visibility-aware car views for public, strict, and frc modes.
-// FRC currently uses strict visibility as its baseline until custom field rules are defined.
+// FRC currently uses strict visibility as its baseline, plus ERS percentage and DRS activation.
 func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnvelope {
 	mode := normalizeParseMode(opts.Mode)
 	playerIndex, hasPlayer := resolvePlayerCarIndex(in.Header, opts)
@@ -48,8 +48,8 @@ func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnv
 	}
 
 	out.CarSetups = filterCarSetups(in.CarSetups, in.Participants, playerIndex, hasPlayer)
-	out.CarStatus = filterCarStatus(in.CarStatus, effectiveExposureMode(mode), playerIndex, hasPlayer)
-	out.CarDamage = filterCarDamage(in.CarDamage, effectiveExposureMode(mode), playerIndex, hasPlayer)
+	out.CarStatus = filterCarStatus(in.CarStatus, mode, playerIndex, hasPlayer)
+	out.CarDamage = filterCarDamage(in.CarDamage, mode, playerIndex, hasPlayer)
 
 	sourceCars := indexCarsByNumber(in.Cars)
 	carCount := detectCarCount(in)
@@ -63,7 +63,7 @@ func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnv
 
 	out.Cars = make([]CarEnvelope, 0, carCount)
 	for carIndex := 0; carIndex < carCount; carIndex++ {
-		out.Cars = append(out.Cars, buildCarEnvelope(out, carIndex, sourceCars[carIndex], effectiveExposureMode(mode), playerIndex, hasPlayer))
+		out.Cars = append(out.Cars, buildCarEnvelope(out, carIndex, sourceCars[carIndex], mode, playerIndex, hasPlayer))
 	}
 
 	if out.CapturedAt.IsZero() {
@@ -79,13 +79,6 @@ func normalizeParseMode(mode ParseMode) ParseMode {
 	default:
 		return ParseModeStrict
 	}
-}
-
-func effectiveExposureMode(mode ParseMode) ParseMode {
-	if mode == ParseModeFRC {
-		return ParseModeStrict
-	}
-	return mode
 }
 
 func resolvePlayerCarIndex(header *packets.PacketHeader, opts ParseOptions) (uint8, bool) {
@@ -140,6 +133,7 @@ func buildCarEnvelope(env FullTelemetryEnvelope, carIndex int, source *CarEnvelo
 	tyreSets := tyreSetsAt(env.TyreSetsByCar, carIndex)
 
 	showPublicOrSelf := shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, carIndex)
+	showERSPct := shouldExposeERSPct(mode, playerIndex, hasPlayer, carIndex)
 	showSetup := shouldExposeSelfOrAI(playerIndex, hasPlayer, carIndex, env.Participants)
 	showDamage := showPublicOrSelf
 
@@ -154,7 +148,7 @@ func buildCarEnvelope(env FullTelemetryEnvelope, carIndex int, source *CarEnvelo
 		Damage:      damage,
 		History:     history,
 		TyreSets:    tyreSets,
-		Normalized:  buildNormalizedCar(carIndex, participant, lap, telemetry, status, damage, setup, history, tyreSets, source, showPublicOrSelf, showSetup, showDamage),
+		Normalized:  buildNormalizedCar(carIndex, participant, lap, telemetry, status, damage, setup, history, tyreSets, source, showPublicOrSelf, showERSPct, showSetup, showDamage),
 	}
 }
 
@@ -170,6 +164,7 @@ func buildNormalizedCar(
 	tyreSets *packets.PacketTyreSetsData,
 	source *CarEnvelope,
 	showPublicOrSelf bool,
+	showERSPct bool,
 	showSetup bool,
 	showDamage bool,
 ) NormalizedCar {
@@ -214,6 +209,7 @@ func buildNormalizedCar(
 		out.TireInnerTemp = telemetry.TireInnerTemp
 		out.TirePressure = telemetry.TirePressure
 		out.SurfaceType = telemetry.SurfaceType
+		out.DRSActivated = telemetry.DRS != 0
 	}
 	if status != nil {
 		out.ActualTyreCompound = status.ActualTyreCompound
@@ -224,6 +220,8 @@ func buildNormalizedCar(
 			out.FuelRemainingLaps = status.FuelRemainingLaps
 			out.FuelMix = status.FuelMix
 			out.BrakeBias = status.BrakeBias
+		}
+		if showPublicOrSelf {
 			out.ERSStoreEnergy = status.ERSStoreEnergy
 			out.ERSDeployMode = status.ERSDeployMode
 			out.ERSDeployedThisLap = status.ERSDeployedThisLap
@@ -253,7 +251,7 @@ func buildNormalizedCar(
 		}
 	}
 	if source != nil {
-		copyDerivedValues(&out, source, showPublicOrSelf)
+		copyDerivedValues(&out, source, showERSPct)
 	}
 	if tyreSets != nil {
 		out.AvailableSets = tyreSetBriefs(tyreSets, source)
@@ -261,13 +259,13 @@ func buildNormalizedCar(
 	return out
 }
 
-func copyDerivedValues(out *NormalizedCar, source *CarEnvelope, showPublicOrSelf bool) {
+func copyDerivedValues(out *NormalizedCar, source *CarEnvelope, showERSPct bool) {
 	out.TireCompound = source.Normalized.TireCompound
 	out.StintHistory = append([]dto.StintInfoDTO(nil), source.Normalized.StintHistory...)
 	out.Dynamics = append([]dto.DynamicsLapDTO(nil), source.Normalized.Dynamics...)
 	out.ERSEstimatePct = source.Normalized.ERSEstimatePct
 	out.ERSEstimateReady = source.Normalized.ERSEstimateReady
-	if showPublicOrSelf {
+	if showERSPct {
 		out.ERSActualPct = source.Normalized.ERSActualPct
 		out.ERSActualReady = source.Normalized.ERSActualReady
 	}
@@ -321,6 +319,8 @@ func filterCarStatus(in *packets.PacketCarStatusData, mode ParseMode, playerInde
 			filtered.FuelRemainingLaps = 0
 			filtered.FuelMix = 0
 			filtered.BrakeBias = 0
+		}
+		if !shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i) {
 			filtered.ERSStoreEnergy = 0
 			filtered.ERSDeployMode = 0
 			filtered.ERSHarvestedMGUK = 0
@@ -347,6 +347,13 @@ func filterCarDamage(in *packets.PacketCarDamageData, mode ParseMode, playerInde
 
 func shouldExposePublicOrSelf(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
 	if mode == ParseModePublic {
+		return true
+	}
+	return hasPlayer && carIndex == int(playerIndex)
+}
+
+func shouldExposeERSPct(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
+	if mode == ParseModePublic || mode == ParseModeFRC {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)

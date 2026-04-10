@@ -56,7 +56,7 @@ console.log(parsed.cars?.[0]?.normalized.name);
 
 - `"public"`: public 가시성 기준으로 연료/ERS/데미지 등을 전체 차량에 노출합니다.
 - `"strict"`: 플레이어 차량만 민감 필드를 유지합니다.
-- `"frc"`: 현재는 `"strict"`와 동일하게 동작합니다.
+- `"frc"`: `"strict"`를 베이스로 하되 `ersActualPct` / `ersEstimatePct` 같은 ERS 퍼센트 값과 `drsActivated`를 추가로 채웁니다.
 
 ## 참고
 

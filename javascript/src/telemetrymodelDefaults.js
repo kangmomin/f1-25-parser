@@ -20,6 +20,7 @@ function normalizedCar(target, init = {}) {
   target.tireInnerTemp = [0, 0, 0, 0];
   target.tirePressure = [0, 0, 0, 0];
   target.surfaceType = [0, 0, 0, 0];
+  target.drsActivated = null;
   target.lastLapTime = null;
   target.bestLapTime = null;
   target.sector1TimeMs = null;

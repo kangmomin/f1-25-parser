@@ -25,6 +25,7 @@ public class NormalizedCar {
     public int[] tireInnerTemp = new int[] {0, 0, 0, 0};
     public float[] tirePressure = new float[] {0f, 0f, 0f, 0f};
     public int[] surfaceType = new int[] {0, 0, 0, 0};
+    public Boolean drsActivated;
 
     public Float lastLapTime;
     public Float bestLapTime;

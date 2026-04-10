@@ -57,7 +57,7 @@ console.log(parsed.cars[0].normalized.name);
 
 - `ParseMode.PUBLIC`: 민감 필드를 모든 차량에 노출합니다.
 - `ParseMode.STRICT`: 플레이어 차량만 민감 필드를 유지합니다.
-- `ParseMode.FRC`: 현재는 `STRICT`와 동일합니다.
+- `ParseMode.FRC`: `STRICT`를 베이스로 하되 `ERS` 값과 `drsActivated`를 추가 노출합니다.
 
 ## 참고
 

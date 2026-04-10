@@ -18,6 +18,7 @@ export interface NormalizedCar {
     tireInnerTemp?: [number, number, number, number];
     tirePressure?: [number, number, number, number];
     surfaceType?: [number, number, number, number];
+    drsActivated?: boolean;
     lastLapTime?: number;
     bestLapTime?: number;
     sector1TimeMs?: number;

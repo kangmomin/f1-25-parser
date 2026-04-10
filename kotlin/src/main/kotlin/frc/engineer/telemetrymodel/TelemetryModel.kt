@@ -76,6 +76,7 @@ data class NormalizedCar(
     val tireInnerTemp: List<Int> = listOf(0, 0, 0, 0),
     val tirePressure: List<Float> = listOf(0f, 0f, 0f, 0f),
     val surfaceType: List<Int> = listOf(0, 0, 0, 0),
+    val drsActivated: Boolean? = null,
     val lastLapTime: Float? = null,
     val bestLapTime: Float? = null,
     val sector1TimeMs: Int? = null,

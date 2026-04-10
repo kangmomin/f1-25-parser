@@ -15,7 +15,6 @@ public final class TelemetryParser {
     public static FullTelemetryEnvelope parse(FullTelemetryEnvelope input, ParseOptions options) {
         ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
         ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
-        ParseMode effectiveMode = mode == ParseMode.FRC ? ParseMode.STRICT : mode;
         Integer playerCarIndex = effectiveOptions.playerCarIndex != null
                 ? effectiveOptions.playerCarIndex
                 : (input.header != null ? input.header.playerCarIndex : null);
@@ -30,8 +29,8 @@ public final class TelemetryParser {
         output.lapData = input.lapData;
         output.carTelemetry = input.carTelemetry;
         output.carSetups = filterCarSetups(input.carSetups, input.participants, playerCarIndex);
-        output.carStatus = filterCarStatus(input.carStatus, effectiveMode, playerCarIndex);
-        output.carDamage = filterCarDamage(input.carDamage, effectiveMode, playerCarIndex);
+        output.carStatus = filterCarStatus(input.carStatus, mode, playerCarIndex);
+        output.carDamage = filterCarDamage(input.carDamage, mode, playerCarIndex);
         output.sessionHistoryByCar = input.sessionHistoryByCar != null
                 ? new HashMap<>(input.sessionHistoryByCar)
                 : new HashMap<>();
@@ -50,7 +49,7 @@ public final class TelemetryParser {
 
         int carCount = detectCarCount(input);
         for (int carIndex = 0; carIndex < carCount; carIndex++) {
-            output.cars.add(buildCarEnvelope(output, carIndex, sourceCars.get(carIndex), effectiveMode, playerCarIndex));
+            output.cars.add(buildCarEnvelope(output, carIndex, sourceCars.get(carIndex), mode, playerCarIndex));
         }
         return output;
     }
@@ -85,6 +84,7 @@ public final class TelemetryParser {
             Integer playerCarIndex
     ) {
         boolean showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex);
+        boolean showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex);
         boolean showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants);
         CarEnvelope car = new CarEnvelope();
         car.carIndex = carIndex;
@@ -97,7 +97,7 @@ public final class TelemetryParser {
         car.damage = showPublicOrSelf ? getAt(envelope.carDamage == null ? null : envelope.carDamage.carDamageData, carIndex) : null;
         car.history = envelope.sessionHistoryByCar != null ? envelope.sessionHistoryByCar.get(carIndex) : null;
         car.tyreSets = envelope.tyreSetsByCar != null ? envelope.tyreSetsByCar.get(carIndex) : null;
-        car.normalized = buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showSetup);
+        car.normalized = buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showERSPct, showSetup);
         return car;
     }
 
@@ -106,6 +106,7 @@ public final class TelemetryParser {
             int carIndex,
             CarEnvelope source,
             boolean showPublicOrSelf,
+            boolean showERSPct,
             boolean showSetup
     ) {
         PacketModels.ParticipantData participant = getAt(envelope.participants == null ? null : envelope.participants.participants, carIndex);
@@ -138,6 +139,7 @@ public final class TelemetryParser {
         out.tireInnerTemp = telemetry != null ? telemetry.tireInnerTemp : out.tireInnerTemp;
         out.tirePressure = telemetry != null ? telemetry.tirePressure : out.tirePressure;
         out.surfaceType = telemetry != null ? telemetry.surfaceType : out.surfaceType;
+        out.drsActivated = telemetry != null ? telemetry.drs != null && telemetry.drs != 0 : null;
         out.lastLapTime = lap != null ? lap.lastLapTime : null;
         out.bestLapTime = lap != null ? lap.bestLapTime : null;
         out.sector1TimeMs = lap != null ? lap.sector1TimeMs : null;
@@ -175,17 +177,23 @@ public final class TelemetryParser {
             out.fuelRemainingLaps = status != null ? status.fuelRemainingLaps : null;
             out.fuelMix = status != null ? status.fuelMix : null;
             out.brakeBias = status != null ? status.brakeBias : null;
+            if (damage != null) {
+                out.tireWear = damage.tireWear;
+                out.damage = compactDamage(damage);
+            }
+        }
+
+        if (showPublicOrSelf) {
             out.ersStoreEnergy = status != null ? status.ersStoreEnergy : null;
             out.ersDeployMode = status != null ? status.ersDeployMode : null;
             out.ersDeployedThisLap = status != null ? status.ersDeployedThisLap : null;
             out.ersHarvestedMGUK = status != null ? status.ersHarvestedMGUK : null;
             out.ersHarvestedMGUH = status != null ? status.ersHarvestedMGUH : null;
+        }
+
+        if (showERSPct) {
             out.ersActualPct = source != null && source.normalized != null ? source.normalized.ersActualPct : null;
             out.ersActualReady = source != null && source.normalized != null ? source.normalized.ersActualReady : null;
-            if (damage != null) {
-                out.tireWear = damage.tireWear;
-                out.damage = compactDamage(damage);
-            }
         }
 
         if (showSetup) {
@@ -226,16 +234,20 @@ public final class TelemetryParser {
                 output.carStatusData.add(status);
             } else {
                 PacketModels.CarStatusData filtered = copyStatus(status);
-                filtered.fuelInTank = null;
-                filtered.fuelCapacity = null;
-                filtered.fuelRemainingLaps = null;
-                filtered.fuelMix = null;
-                filtered.brakeBias = null;
-                filtered.ersStoreEnergy = null;
-                filtered.ersDeployMode = null;
-                filtered.ersHarvestedMGUK = null;
-                filtered.ersHarvestedMGUH = null;
-                filtered.ersDeployedThisLap = null;
+                if (!canExposePublicOrSelfForMode(mode, i, playerCarIndex)) {
+                    filtered.fuelInTank = null;
+                    filtered.fuelCapacity = null;
+                    filtered.fuelRemainingLaps = null;
+                    filtered.fuelMix = null;
+                    filtered.brakeBias = null;
+                }
+                if (!canExposePublicOrSelfForMode(mode, i, playerCarIndex)) {
+                    filtered.ersStoreEnergy = null;
+                    filtered.ersDeployMode = null;
+                    filtered.ersHarvestedMGUK = null;
+                    filtered.ersHarvestedMGUH = null;
+                    filtered.ersDeployedThisLap = null;
+                }
                 output.carStatusData.add(filtered);
             }
         }
@@ -287,6 +299,10 @@ public final class TelemetryParser {
 
     private static boolean canExposePublicOrSelfForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {
         return mode == ParseMode.PUBLIC || (playerCarIndex != null && playerCarIndex == carIndex);
+    }
+
+    private static boolean canExposeERSPctForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {
+        return mode == ParseMode.PUBLIC || mode == ParseMode.FRC || (playerCarIndex != null && playerCarIndex == carIndex);
     }
 
     private static boolean canExposeSelfOrAi(
