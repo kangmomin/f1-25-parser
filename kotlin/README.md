@@ -54,11 +54,21 @@ fun main() {
 
 ## 모드
 
-- `PUBLIC`: `PUBLIC_OR_SELF` 필드를 전체 차량에 노출합니다.
-- `STRICT`: 플레이어 차량 외 민감 필드를 숨깁니다.
-- `FRC`: `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 ERS 퍼센트, `DRS` 활성화 여부, `aiControlled`, `diffOnThrottle`, `tireCompound` 같은 FRC용 필드를 노출합니다.
+| 데이터 영역 | `PUBLIC` | `STRICT` | `FRC` |
+| --- | --- | --- | --- |
+| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 |
+| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 |
+| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
+| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ersStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `drsActivated` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `tireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ersActualPct` / `ersEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 |
 
 ## 참고
 
 - `SELF_OR_AI`는 `ParticipantData.aiControlled == true`일 때 setup을 유지합니다.
+- `FRC`는 `STRICT` 기반에 `ersStoreEnergy`, `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `tireWear`는 추가 공개하지 않습니다.
 - 현재 구현은 raw UDP 바이트를 직접 읽는 decoder가 아니라 envelope 후처리 파서입니다.

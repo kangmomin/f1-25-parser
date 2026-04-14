@@ -55,11 +55,21 @@ console.log(parsed.cars[0].normalized.name);
 
 ## 모드
 
-- `ParseMode.PUBLIC`: 민감 필드를 모든 차량에 노출합니다.
-- `ParseMode.STRICT`: 플레이어 차량만 민감 필드를 유지합니다.
-- `ParseMode.FRC`: `PUBLIC`에서 보이는 데이터는 전부 포함하고, 추가로 ERS 퍼센트, `drsActivated`, `aiControlled`, `diffOnThrottle`, `tireCompound` 같은 FRC용 필드를 노출합니다.
+| 데이터 영역 | `ParseMode.PUBLIC` | `ParseMode.STRICT` | `ParseMode.FRC` |
+| --- | --- | --- | --- |
+| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 |
+| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 |
+| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
+| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ersStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `drsActivated` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `tireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ersActualPct` / `ersEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 |
 
 ## 참고
 
 - setup 노출은 `aiControlled` 차량에 한해 유지됩니다.
+- `FRC`는 `STRICT` 기반에 `ersStoreEnergy`, `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `tireWear`는 추가 공개하지 않습니다.
 - 이 패키지는 바이트 단위 UDP parser가 아니라, envelope 후처리/정규화 레이어입니다.

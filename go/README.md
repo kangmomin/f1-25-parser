@@ -64,11 +64,21 @@ func main() {
 
 ## 모드
 
-- `public`: `PUBLIC_OR_SELF` 필드를 모든 차량에 공개합니다.
-- `strict`: `PUBLIC_OR_SELF` 필드는 플레이어 차량만 공개합니다.
-- `frc`: `public`에서 보이는 데이터는 전부 포함하고, 추가로 `ERS` 퍼센트와 `DRSActivated`, `aiControlled`, `diffOnThrottle`, `tireCompound` 같은 FRC용 필드를 채웁니다.
+| 데이터 영역 | `public` | `strict` | `frc` |
+| --- | --- | --- | --- |
+| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 |
+| 피트 상태 (`PitStatus`, `PitStopTimer`, `PitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 |
+| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
+| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ERSStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `DRSActivated` | 전체 차량 | 본인 차량만 | 전체 차량 |
+| 차량 데미지 (`CarDamage`, `Normalized.Damage`) | 전체 차량 | 본인 차량만 | 전체 차량 |
+| `TireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| `ERSActualPct` / `ERSEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 |
 
 ## 참고
 
 - `SELF_OR_AI` 규칙은 `participants.Participants[i].AiControlled` 값을 사용합니다.
+- `frc`는 `strict` 기반에 `ERSStoreEnergy`, `DRSActivated`, 차량 데미지만 추가 공개합니다. 단 `TireWear`는 추가 공개하지 않습니다.
 - 현재 구현은 raw UDP byte decoder가 아닙니다. 먼저 envelope를 구성한 뒤 이 라이브러리로 visibility parsing을 적용해야 합니다.
