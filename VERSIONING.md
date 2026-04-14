@@ -3,7 +3,7 @@
 이 저장소는 `Semantic Versioning` 형식을 따릅니다.
 
 - 태그 형식: `vMAJOR.MINOR.PATCH`
-- 현재 기준선: `v0.1.0`
+- 현재 기준선: `v0.2.0`
 - 기본 브랜치: `main`
 
 ## 현재 운영 원칙

@@ -1,6 +1,6 @@
 {
   "name": "frc-telemetry-model-typescript",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript telemetry model library generated from the provided FRC telemetry envelope structure.",
   "type": "module",
   "main": "dist/index.js",
