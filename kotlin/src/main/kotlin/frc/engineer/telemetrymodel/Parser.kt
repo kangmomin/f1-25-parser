@@ -75,8 +75,12 @@ private fun buildCarEnvelope(
     playerCarIndex: Int?,
 ): CarEnvelope {
     val showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex)
+    val showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex)
     val showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex)
+    val showDRSActivated = canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex)
     val showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants)
+    val showDamage = canExposeDamageForMode(mode, carIndex, playerCarIndex)
+    val showTireWear = canExposeTireWearForMode(mode, carIndex, playerCarIndex)
     return CarEnvelope(
         carIndex = carIndex,
         participant = envelope.participants?.participants?.getOrNull(carIndex),
@@ -85,10 +89,21 @@ private fun buildCarEnvelope(
         setup = if (showSetup) envelope.carSetups?.carSetups?.getOrNull(carIndex) else null,
         telemetry = envelope.carTelemetry?.carTelemetryData?.getOrNull(carIndex),
         status = envelope.carStatus?.carStatusData?.getOrNull(carIndex),
-        damage = if (showPublicOrSelf) envelope.carDamage?.carDamageData?.getOrNull(carIndex) else null,
+        damage = if (showDamage) envelope.carDamage?.carDamageData?.getOrNull(carIndex) else null,
         history = envelope.sessionHistoryByCar[carIndex],
         tyreSets = envelope.tyreSetsByCar[carIndex],
-        normalized = buildNormalizedCar(envelope, carIndex, source, showPublicOrSelf, showERSPct, showSetup),
+        normalized = buildNormalizedCar(
+            envelope,
+            carIndex,
+            source,
+            showPublicOrSelf,
+            showERSEnergy,
+            showERSPct,
+            showDRSActivated,
+            showSetup,
+            showDamage,
+            showTireWear,
+        ),
     )
 }
 
@@ -97,8 +112,12 @@ private fun buildNormalizedCar(
     carIndex: Int,
     source: CarEnvelope?,
     showPublicOrSelf: Boolean,
+    showERSEnergy: Boolean,
     showERSPct: Boolean,
+    showDRSActivated: Boolean,
     showSetup: Boolean,
+    showDamage: Boolean,
+    showTireWear: Boolean,
 ): NormalizedCar {
     val participant = envelope.participants?.participants?.getOrNull(carIndex)
     val lap = envelope.lapData?.lapData?.getOrNull(carIndex)
@@ -127,7 +146,7 @@ private fun buildNormalizedCar(
         tireInnerTemp = telemetry?.tireInnerTemp ?: listOf(0, 0, 0, 0),
         tirePressure = telemetry?.tirePressure ?: listOf(0f, 0f, 0f, 0f),
         surfaceType = telemetry?.surfaceType ?: listOf(0, 0, 0, 0),
-        drsActivated = telemetry?.drs?.let { it != 0 },
+        drsActivated = if (showDRSActivated) telemetry?.drs?.let { it != 0 } else null,
         lastLapTime = lap?.lastLapTime,
         bestLapTime = lap?.bestLapTime,
         sector1TimeMs = lap?.sector1TimeMs,
@@ -155,13 +174,13 @@ private fun buildNormalizedCar(
         fuelRemainingLaps = if (showPublicOrSelf) status?.fuelRemainingLaps else null,
         fuelMix = if (showPublicOrSelf) status?.fuelMix else null,
         brakeBias = if (showPublicOrSelf) status?.brakeBias else null,
-        ersStoreEnergy = if (showPublicOrSelf) status?.ersStoreEnergy else null,
+        ersStoreEnergy = if (showERSEnergy) status?.ersStoreEnergy else null,
         ersDeployMode = if (showPublicOrSelf) status?.ersDeployMode else null,
         ersDeployedThisLap = if (showPublicOrSelf) status?.ersDeployedThisLap else null,
         ersHarvestedMGUK = if (showPublicOrSelf) status?.ersHarvestedMGUK else null,
         ersHarvestedMGUH = if (showPublicOrSelf) status?.ersHarvestedMGUH else null,
-        tireWear = if (showPublicOrSelf) damage?.tireWear ?: listOf(0, 0, 0, 0) else listOf(0, 0, 0, 0),
-        damage = if (showPublicOrSelf) compactDamage(damage) else null,
+        tireWear = if (showTireWear) damage?.tireWear ?: listOf(0, 0, 0, 0) else listOf(0, 0, 0, 0),
+        damage = if (showDamage) compactDamage(damage) else null,
         setup = if (showSetup) envelope.carSetups?.carSetups?.getOrNull(carIndex) else null,
         bestSector1Ms = history?.bestSector1Ms,
         bestSector2Ms = history?.bestSector2Ms,
@@ -171,8 +190,8 @@ private fun buildNormalizedCar(
         dynamics = source?.normalized?.dynamics ?: emptyList(),
         ersActualPct = if (showERSPct) source?.normalized?.ersActualPct else null,
         ersActualReady = if (showERSPct) source?.normalized?.ersActualReady else null,
-        ersEstimatePct = source?.normalized?.ersEstimatePct,
-        ersEstimateReady = source?.normalized?.ersEstimateReady,
+        ersEstimatePct = if (showERSPct) source?.normalized?.ersEstimatePct else null,
+        ersEstimateReady = if (showERSPct) source?.normalized?.ersEstimateReady else null,
     )
 }
 
@@ -197,20 +216,22 @@ private fun filterCarStatus(
     if (packet == null) return null
     return packet.copy(
         carStatusData = packet.carStatusData.mapIndexed { index, status ->
-            if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) {
+            val showPublicOrSelf = canExposePublicOrSelfForMode(mode, index, playerCarIndex)
+            val showERSEnergy = canExposeERSEnergyForMode(mode, index, playerCarIndex)
+            if (showPublicOrSelf) {
                 status
             } else {
                 status.copy(
-                    fuelInTank = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.fuelInTank else null,
-                    fuelCapacity = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.fuelCapacity else null,
-                    fuelRemainingLaps = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.fuelRemainingLaps else null,
-                    fuelMix = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.fuelMix else null,
-                    brakeBias = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.brakeBias else null,
-                    ersStoreEnergy = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.ersStoreEnergy else null,
-                    ersDeployMode = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.ersDeployMode else null,
-                    ersHarvestedMGUK = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.ersHarvestedMGUK else null,
-                    ersHarvestedMGUH = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.ersHarvestedMGUH else null,
-                    ersDeployedThisLap = if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) status.ersDeployedThisLap else null,
+                    fuelInTank = if (showPublicOrSelf) status.fuelInTank else null,
+                    fuelCapacity = if (showPublicOrSelf) status.fuelCapacity else null,
+                    fuelRemainingLaps = if (showPublicOrSelf) status.fuelRemainingLaps else null,
+                    fuelMix = if (showPublicOrSelf) status.fuelMix else null,
+                    brakeBias = if (showPublicOrSelf) status.brakeBias else null,
+                    ersStoreEnergy = if (showERSEnergy) status.ersStoreEnergy else null,
+                    ersDeployMode = if (showPublicOrSelf) status.ersDeployMode else null,
+                    ersHarvestedMGUK = if (showPublicOrSelf) status.ersHarvestedMGUK else null,
+                    ersHarvestedMGUH = if (showPublicOrSelf) status.ersHarvestedMGUH else null,
+                    ersDeployedThisLap = if (showPublicOrSelf) status.ersDeployedThisLap else null,
                 )
             }
         },
@@ -225,7 +246,11 @@ private fun filterCarDamage(
     if (packet == null) return null
     return packet.copy(
         carDamageData = packet.carDamageData.mapIndexed { index, damage ->
-            if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) damage else CarDamageData()
+            when {
+                canExposePublicOrSelfForMode(mode, index, playerCarIndex) -> damage
+                canExposeDamageForMode(mode, index, playerCarIndex) -> damage.copy(tireWear = listOf(0, 0, 0, 0))
+                else -> CarDamageData()
+            }
         },
     )
 }
@@ -234,13 +259,37 @@ private fun canExposePublicOrSelfForMode(
     mode: ParseMode,
     carIndex: Int,
     playerCarIndex: Int?,
+): Boolean = mode == ParseMode.PUBLIC || playerCarIndex == carIndex
+
+private fun canExposeERSEnergyForMode(
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
 ): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+
+private fun canExposeDRSActivatedForMode(
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
+): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+
+private fun canExposeDamageForMode(
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
+): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+
+private fun canExposeTireWearForMode(
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
+): Boolean = mode == ParseMode.PUBLIC || playerCarIndex == carIndex
 
 private fun canExposeERSPctForMode(
     mode: ParseMode,
     carIndex: Int,
     playerCarIndex: Int?,
-): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+): Boolean = mode == ParseMode.PUBLIC || playerCarIndex == carIndex
 
 private fun canExposeSelfOrAi(
     carIndex: Int,

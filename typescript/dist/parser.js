@@ -47,8 +47,12 @@ function detectCarCount(input) {
 }
 function buildCarEnvelope(envelope, carIndex, source, mode, playerCarIndex) {
     const showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex);
+    const showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex);
     const showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex);
+    const showDRSActivated = canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex);
     const showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants);
+    const showDamage = canExposeDamageForMode(mode, carIndex, playerCarIndex);
+    const showTireWear = canExposeTireWearForMode(mode, carIndex, playerCarIndex);
     const participant = envelope.participants?.participants?.[carIndex];
     const history = envelope.sessionHistoryByCar?.[carIndex];
     const tyreSets = envelope.tyreSetsByCar?.[carIndex];
@@ -62,15 +66,15 @@ function buildCarEnvelope(envelope, carIndex, source, mode, playerCarIndex) {
             : undefined,
         telemetry: envelope.carTelemetry?.carTelemetryData?.[carIndex],
         status: envelope.carStatus?.carStatusData?.[carIndex],
-        damage: envelope.carDamage?.carDamageData?.[carIndex] && showPublicOrSelf
+        damage: envelope.carDamage?.carDamageData?.[carIndex] && showDamage
             ? envelope.carDamage?.carDamageData?.[carIndex]
             : undefined,
         history,
         tyreSets,
-        normalized: buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showERSPct, showSetup),
+        normalized: buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showERSEnergy, showERSPct, showDRSActivated, showSetup, showDamage, showTireWear),
     };
 }
-function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showERSPct, showSetup) {
+function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showERSEnergy, showERSPct, showDRSActivated, showSetup, showDamage, showTireWear) {
     const participant = envelope.participants?.participants?.[carIndex];
     const lap = envelope.lapData?.lapData?.[carIndex];
     const telemetry = envelope.carTelemetry?.carTelemetryData?.[carIndex];
@@ -97,7 +101,7 @@ function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showER
         tireInnerTemp: telemetry?.tireInnerTemp,
         tirePressure: telemetry?.tirePressure,
         surfaceType: telemetry?.surfaceType,
-        drsActivated: telemetry?.drs !== undefined ? telemetry.drs !== 0 : undefined,
+        drsActivated: showDRSActivated && telemetry?.drs !== undefined ? telemetry.drs !== 0 : undefined,
         lastLapTime: lap?.lastLapTime,
         bestLapTime: lap?.bestLapTime,
         sector1TimeMs: lap?.sector1TimeMs,
@@ -126,8 +130,8 @@ function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showER
         stintHistory: source?.normalized.stintHistory,
         dynamics: source?.normalized.dynamics,
         tireCompound: resolveTireCompound(source, status),
-        ersEstimatePct: source?.normalized.ersEstimatePct,
-        ersEstimateReady: source?.normalized.ersEstimateReady,
+        ersEstimatePct: showERSPct ? source?.normalized.ersEstimatePct : undefined,
+        ersEstimateReady: showERSPct ? source?.normalized.ersEstimateReady : undefined,
     };
     if (showPublicOrSelf) {
         normalized.fuelInTank = status?.fuelInTank;
@@ -135,14 +139,18 @@ function buildNormalizedCar(carIndex, envelope, source, showPublicOrSelf, showER
         normalized.fuelRemainingLaps = status?.fuelRemainingLaps;
         normalized.fuelMix = status?.fuelMix;
         normalized.brakeBias = status?.brakeBias;
-        normalized.ersStoreEnergy = status?.ersStoreEnergy;
         normalized.ersDeployMode = status?.ersDeployMode;
         normalized.ersDeployedThisLap = status?.ersDeployedThisLap;
         normalized.ersHarvestedMGUK = status?.ersHarvestedMGUK;
         normalized.ersHarvestedMGUH = status?.ersHarvestedMGUH;
-        if (damage) {
+    }
+    if (showERSEnergy) {
+        normalized.ersStoreEnergy = status?.ersStoreEnergy;
+    }
+    if (showDamage && damage) {
+        normalized.damage = compactDamage(damage);
+        if (showTireWear) {
             normalized.tireWear = damage.tireWear;
-            normalized.damage = compactDamage(damage);
         }
     }
     if (showERSPct) {
@@ -170,19 +178,23 @@ function filterCarStatus(packet, mode, playerCarIndex) {
     return {
         ...packet,
         carStatusData: packet.carStatusData.map((status, index) => {
-            if (canExposePublicOrSelfForMode(mode, index, playerCarIndex)) {
+            const showPublicOrSelf = canExposePublicOrSelfForMode(mode, index, playerCarIndex);
+            const showERSEnergy = canExposeERSEnergyForMode(mode, index, playerCarIndex);
+            if (showPublicOrSelf) {
                 return status;
             }
             const filtered = { ...status };
-            if (!canExposePublicOrSelfForMode(mode, index, playerCarIndex)) {
+            if (!showPublicOrSelf) {
                 filtered.fuelInTank = undefined;
                 filtered.fuelCapacity = undefined;
                 filtered.fuelRemainingLaps = undefined;
                 filtered.fuelMix = undefined;
                 filtered.brakeBias = undefined;
             }
-            if (!canExposePublicOrSelfForMode(mode, index, playerCarIndex)) {
+            if (!showERSEnergy) {
                 filtered.ersStoreEnergy = undefined;
+            }
+            if (!showPublicOrSelf) {
                 filtered.ersDeployMode = undefined;
                 filtered.ersDeployedThisLap = undefined;
                 filtered.ersHarvestedMGUK = undefined;
@@ -198,14 +210,39 @@ function filterCarDamage(packet, mode, playerCarIndex) {
     }
     return {
         ...packet,
-        carDamageData: packet.carDamageData.map((damage, index) => canExposePublicOrSelfForMode(mode, index, playerCarIndex) ? damage : {}),
+        carDamageData: packet.carDamageData.map((damage, index) => {
+            const showPublicOrSelf = canExposePublicOrSelfForMode(mode, index, playerCarIndex);
+            const showDamage = canExposeDamageForMode(mode, index, playerCarIndex);
+            if (showPublicOrSelf) {
+                return damage;
+            }
+            if (showDamage) {
+                return {
+                    ...damage,
+                    tireWear: undefined,
+                };
+            }
+            return {};
+        }),
     };
 }
 function canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex) {
-    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+    return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeERSPctForMode(mode, carIndex, playerCarIndex) {
+    return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);
+}
+function canExposeERSEnergyForMode(mode, carIndex, playerCarIndex) {
     return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+}
+function canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex) {
+    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+}
+function canExposeDamageForMode(mode, carIndex, playerCarIndex) {
+    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+}
+function canExposeTireWearForMode(mode, carIndex, playerCarIndex) {
+    return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeSelfOrAi(carIndex, playerCarIndex, participants) {
     if (playerCarIndex !== null && playerCarIndex === carIndex) {

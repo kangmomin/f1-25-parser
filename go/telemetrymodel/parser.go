@@ -29,7 +29,8 @@ type ParseOptions struct {
 }
 
 // ParseEnvelope builds visibility-aware car views for public, strict, and frc modes.
-// FRC currently includes all public-visible data, plus ERS percentage and DRS activation.
+// FRC currently behaves like strict, while additionally exposing ERS store energy,
+// DRS activation, and non-tyre-wear damage.
 func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnvelope {
 	mode := normalizeParseMode(opts.Mode)
 	playerIndex, hasPlayer := resolvePlayerCarIndex(in.Header, opts)
@@ -134,9 +135,12 @@ func buildCarEnvelope(env FullTelemetryEnvelope, carIndex int, source *CarEnvelo
 	tyreSets := tyreSetsAt(env.TyreSetsByCar, carIndex)
 
 	showPublicOrSelf := shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, carIndex)
+	showERSEnergy := shouldExposeERSEnergy(mode, playerIndex, hasPlayer, carIndex)
 	showERSPct := shouldExposeERSPct(mode, playerIndex, hasPlayer, carIndex)
+	showDRSActivated := shouldExposeDRSActivated(mode, playerIndex, hasPlayer, carIndex)
 	showSetup := shouldExposeSelfOrAI(playerIndex, hasPlayer, carIndex, env.Participants)
-	showDamage := showPublicOrSelf
+	showDamage := shouldExposeDamage(mode, playerIndex, hasPlayer, carIndex)
+	showTireWear := shouldExposeTireWear(mode, playerIndex, hasPlayer, carIndex)
 
 	return CarEnvelope{
 		CarIndex:    carIndex,
@@ -149,7 +153,7 @@ func buildCarEnvelope(env FullTelemetryEnvelope, carIndex int, source *CarEnvelo
 		Damage:      damage,
 		History:     history,
 		TyreSets:    tyreSets,
-		Normalized:  buildNormalizedCar(carIndex, participant, lap, telemetry, status, damage, setup, history, tyreSets, source, showPublicOrSelf, showERSPct, showSetup, showDamage),
+		Normalized:  buildNormalizedCar(carIndex, participant, lap, telemetry, status, damage, setup, history, tyreSets, source, showPublicOrSelf, showERSEnergy, showERSPct, showDRSActivated, showSetup, showDamage, showTireWear),
 	}
 }
 
@@ -165,9 +169,12 @@ func buildNormalizedCar(
 	tyreSets *packets.PacketTyreSetsData,
 	source *CarEnvelope,
 	showPublicOrSelf bool,
+	showERSEnergy bool,
 	showERSPct bool,
+	showDRSActivated bool,
 	showSetup bool,
 	showDamage bool,
+	showTireWear bool,
 ) NormalizedCar {
 	out := NormalizedCar{Index: carIndex}
 	if participant != nil {
@@ -211,7 +218,9 @@ func buildNormalizedCar(
 		out.TireInnerTemp = telemetry.TireInnerTemp
 		out.TirePressure = telemetry.TirePressure
 		out.SurfaceType = telemetry.SurfaceType
-		out.DRSActivated = telemetry.DRS != 0
+		if showDRSActivated {
+			out.DRSActivated = telemetry.DRS != 0
+		}
 	}
 	out.TireCompound = resolveTireCompound(source, status)
 	if status != nil {
@@ -224,8 +233,10 @@ func buildNormalizedCar(
 			out.FuelMix = status.FuelMix
 			out.BrakeBias = status.BrakeBias
 		}
-		if showPublicOrSelf {
+		if showERSEnergy {
 			out.ERSStoreEnergy = status.ERSStoreEnergy
+		}
+		if showPublicOrSelf {
 			out.ERSDeployMode = status.ERSDeployMode
 			out.ERSDeployedThisLap = status.ERSDeployedThisLap
 			out.ERSHarvestedMGUK = status.ERSHarvestedMGUK
@@ -241,7 +252,6 @@ func buildNormalizedCar(
 		out.Setup = setup
 	}
 	if showDamage && damage != nil {
-		out.TireWear = damage.TireWear
 		out.Damage = &dto.CarDamage{
 			FrontLeftWing:  damage.FrontLeftWingDamage,
 			FrontRightWing: damage.FrontRightWingDamage,
@@ -251,6 +261,9 @@ func buildNormalizedCar(
 			Sidepod:        damage.SidepodDamage,
 			Gearbox:        damage.GearboxDamage,
 			Engine:         damage.EngineDamage,
+		}
+		if showTireWear {
+			out.TireWear = damage.TireWear
 		}
 	}
 	if source != nil {
@@ -266,9 +279,9 @@ func copyDerivedValues(out *NormalizedCar, source *CarEnvelope, showERSPct bool)
 	out.TireCompound = source.Normalized.TireCompound
 	out.StintHistory = append([]dto.StintInfoDTO(nil), source.Normalized.StintHistory...)
 	out.Dynamics = append([]dto.DynamicsLapDTO(nil), source.Normalized.Dynamics...)
-	out.ERSEstimatePct = source.Normalized.ERSEstimatePct
-	out.ERSEstimateReady = source.Normalized.ERSEstimateReady
 	if showERSPct {
+		out.ERSEstimatePct = source.Normalized.ERSEstimatePct
+		out.ERSEstimateReady = source.Normalized.ERSEstimateReady
 		out.ERSActualPct = source.Normalized.ERSActualPct
 		out.ERSActualReady = source.Normalized.ERSActualReady
 	}
@@ -316,15 +329,19 @@ func filterCarStatus(in *packets.PacketCarStatusData, mode ParseMode, playerInde
 	out := &packets.PacketCarStatusData{CarStatusData: make([]packets.CarStatusData, len(in.CarStatusData))}
 	for i, status := range in.CarStatusData {
 		filtered := status
-		if !shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i) {
+		showPublicOrSelf := shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i)
+		showERSEnergy := shouldExposeERSEnergy(mode, playerIndex, hasPlayer, i)
+		if !showPublicOrSelf {
 			filtered.FuelInTank = 0
 			filtered.FuelCapacity = 0
 			filtered.FuelRemainingLaps = 0
 			filtered.FuelMix = 0
 			filtered.BrakeBias = 0
 		}
-		if !shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i) {
+		if !showERSEnergy {
 			filtered.ERSStoreEnergy = 0
+		}
+		if !showPublicOrSelf {
 			filtered.ERSDeployMode = 0
 			filtered.ERSHarvestedMGUK = 0
 			filtered.ERSHarvestedMGUH = 0
@@ -341,22 +358,58 @@ func filterCarDamage(in *packets.PacketCarDamageData, mode ParseMode, playerInde
 	}
 	out := &packets.PacketCarDamageData{CarDamageData: make([]packets.CarDamageData, len(in.CarDamageData))}
 	for i, damage := range in.CarDamageData {
-		if shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i) {
+		showPublicOrSelf := shouldExposePublicOrSelf(mode, playerIndex, hasPlayer, i)
+		showDamage := shouldExposeDamage(mode, playerIndex, hasPlayer, i)
+		if showPublicOrSelf {
 			out.CarDamageData[i] = damage
+			continue
+		}
+		if showDamage {
+			filtered := damage
+			filtered.TireWear = [4]int{}
+			out.CarDamageData[i] = filtered
 		}
 	}
 	return out
 }
 
 func shouldExposePublicOrSelf(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
-	if mode == ParseModePublic || mode == ParseModeFRC {
+	if mode == ParseModePublic {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)
 }
 
 func shouldExposeERSPct(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
+	if mode == ParseModePublic {
+		return true
+	}
+	return hasPlayer && carIndex == int(playerIndex)
+}
+
+func shouldExposeERSEnergy(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
 	if mode == ParseModePublic || mode == ParseModeFRC {
+		return true
+	}
+	return hasPlayer && carIndex == int(playerIndex)
+}
+
+func shouldExposeDRSActivated(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
+	if mode == ParseModePublic || mode == ParseModeFRC {
+		return true
+	}
+	return hasPlayer && carIndex == int(playerIndex)
+}
+
+func shouldExposeDamage(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
+	if mode == ParseModePublic || mode == ParseModeFRC {
+		return true
+	}
+	return hasPlayer && carIndex == int(playerIndex)
+}
+
+func shouldExposeTireWear(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
+	if mode == ParseModePublic {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)
