@@ -13,12 +13,6 @@ public final class TelemetryParser {
     }
 
     public static FullTelemetryEnvelope parse(FullTelemetryEnvelope input, ParseOptions options) {
-        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
-        ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
-        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
-                ? effectiveOptions.playerCarIndex
-                : (input.header != null ? input.header.playerCarIndex : null);
-
         FullTelemetryEnvelope output = new FullTelemetryEnvelope();
         output.capturedAt = input.capturedAt != null ? input.capturedAt : Instant.now();
         output.header = input.header;
@@ -28,9 +22,9 @@ public final class TelemetryParser {
         output.motion = input.motion;
         output.lapData = input.lapData;
         output.carTelemetry = input.carTelemetry;
-        output.carSetups = filterCarSetups(input.carSetups, input.participants, playerCarIndex);
-        output.carStatus = filterCarStatus(input.carStatus, mode, playerCarIndex);
-        output.carDamage = filterCarDamage(input.carDamage, mode, playerCarIndex);
+        output.carSetups = normalizeCarSetups(input.carSetups);
+        output.carStatus = input.carStatus;
+        output.carDamage = input.carDamage;
         output.sessionHistoryByCar = input.sessionHistoryByCar != null
                 ? new HashMap<>(input.sessionHistoryByCar)
                 : new HashMap<>();
@@ -49,9 +43,111 @@ public final class TelemetryParser {
 
         int carCount = detectCarCount(input);
         for (int carIndex = 0; carIndex < carCount; carIndex++) {
-            output.cars.add(buildCarEnvelope(output, carIndex, sourceCars.get(carIndex), mode, playerCarIndex));
+            output.cars.add(buildRawCarEnvelope(output, carIndex, sourceCars.get(carIndex)));
         }
         return output;
+    }
+
+    public static FullTelemetryEnvelope getVisibleEnvelope(FullTelemetryEnvelope input, ParseOptions options) {
+        FullTelemetryEnvelope envelope = ensureParsedEnvelope(input);
+        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
+        ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
+        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
+                ? effectiveOptions.playerCarIndex
+                : (envelope.header != null ? envelope.header.playerCarIndex : null);
+
+        FullTelemetryEnvelope output = new FullTelemetryEnvelope();
+        output.capturedAt = envelope.capturedAt != null ? envelope.capturedAt : Instant.now();
+        output.header = envelope.header;
+        output.session = envelope.session;
+        output.lastEvent = envelope.lastEvent;
+        output.participants = envelope.participants;
+        output.motion = envelope.motion;
+        output.lapData = envelope.lapData;
+        output.carTelemetry = envelope.carTelemetry;
+        output.carSetups = filterCarSetups(envelope.carSetups, envelope.participants, playerCarIndex);
+        output.carStatus = filterCarStatus(envelope.carStatus, mode, playerCarIndex);
+        output.carDamage = filterCarDamage(envelope.carDamage, mode, playerCarIndex);
+        output.sessionHistoryByCar = envelope.sessionHistoryByCar != null
+                ? new HashMap<>(envelope.sessionHistoryByCar)
+                : new HashMap<>();
+        output.tyreSetsByCar = envelope.tyreSetsByCar != null
+                ? new HashMap<>(envelope.tyreSetsByCar)
+                : new HashMap<>();
+        output.pitwall = envelope.pitwall;
+        output.cars = new ArrayList<>();
+
+        Map<Integer, CarEnvelope> sourceCars = new HashMap<>();
+        if (envelope.cars != null) {
+            for (CarEnvelope car : envelope.cars) {
+                sourceCars.put(car.carIndex, car);
+            }
+        }
+
+        int carCount = detectCarCount(envelope);
+        for (int carIndex = 0; carIndex < carCount; carIndex++) {
+            output.cars.add(buildCarEnvelope(envelope, carIndex, sourceCars.get(carIndex), mode, playerCarIndex));
+        }
+        return output;
+    }
+
+    public static CarEnvelope getVisibleCarEnvelope(FullTelemetryEnvelope input, int carIndex, ParseOptions options) {
+        FullTelemetryEnvelope envelope = ensureParsedEnvelope(input);
+        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
+        ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
+        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
+                ? effectiveOptions.playerCarIndex
+                : (envelope.header != null ? envelope.header.playerCarIndex : null);
+        Map<Integer, CarEnvelope> sourceCars = new HashMap<>();
+        if (envelope.cars != null) {
+            for (CarEnvelope car : envelope.cars) {
+                sourceCars.put(car.carIndex, car);
+            }
+        }
+        return buildCarEnvelope(envelope, carIndex, sourceCars.get(carIndex), mode, playerCarIndex);
+    }
+
+    public static NormalizedCar getVisibleNormalizedCar(FullTelemetryEnvelope input, int carIndex, ParseOptions options) {
+        CarEnvelope car = getVisibleCarEnvelope(input, carIndex, options);
+        return car != null ? car.normalized : null;
+    }
+
+    public static PacketModels.CarSetupData getVisibleCarSetup(FullTelemetryEnvelope input, int carIndex, ParseOptions options) {
+        FullTelemetryEnvelope envelope = ensureParsedEnvelope(input);
+        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
+        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
+                ? effectiveOptions.playerCarIndex
+                : (envelope.header != null ? envelope.header.playerCarIndex : null);
+        if (!canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants)) {
+            return null;
+        }
+        return getAt(envelope.carSetups == null ? null : envelope.carSetups.carSetups, carIndex);
+    }
+
+    public static PacketModels.CarStatusData getVisibleCarStatus(FullTelemetryEnvelope input, int carIndex, ParseOptions options) {
+        FullTelemetryEnvelope envelope = ensureParsedEnvelope(input);
+        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
+        ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
+        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
+                ? effectiveOptions.playerCarIndex
+                : (envelope.header != null ? envelope.header.playerCarIndex : null);
+        PacketModels.CarStatusData status = getAt(envelope.carStatus == null ? null : envelope.carStatus.carStatusData, carIndex);
+        return status != null ? filterCarStatusEntry(status, mode, playerCarIndex, carIndex) : null;
+    }
+
+    public static PacketModels.CarDamageData getVisibleCarDamage(FullTelemetryEnvelope input, int carIndex, ParseOptions options) {
+        FullTelemetryEnvelope envelope = ensureParsedEnvelope(input);
+        ParseOptions effectiveOptions = options == null ? new ParseOptions() : options;
+        ParseMode mode = effectiveOptions.mode == null ? ParseMode.STRICT : effectiveOptions.mode;
+        Integer playerCarIndex = effectiveOptions.playerCarIndex != null
+                ? effectiveOptions.playerCarIndex
+                : (envelope.header != null ? envelope.header.playerCarIndex : null);
+        PacketModels.CarDamageData damage = getAt(envelope.carDamage == null ? null : envelope.carDamage.carDamageData, carIndex);
+        if (damage == null) {
+            return null;
+        }
+        PacketModels.CarDamageData filtered = filterCarDamageEntry(damage, mode, playerCarIndex, carIndex);
+        return filtered == null || isEmptyDamage(filtered) ? null : filtered;
     }
 
     private static int detectCarCount(FullTelemetryEnvelope input) {
@@ -74,6 +170,33 @@ public final class TelemetryParser {
             }
         }
         return maxCount;
+    }
+
+    private static FullTelemetryEnvelope ensureParsedEnvelope(FullTelemetryEnvelope input) {
+        if (input.cars != null && !input.cars.isEmpty()) {
+            return input;
+        }
+        return parse(input, new ParseOptions());
+    }
+
+    private static CarEnvelope buildRawCarEnvelope(
+            FullTelemetryEnvelope envelope,
+            int carIndex,
+            CarEnvelope source
+    ) {
+        CarEnvelope car = new CarEnvelope();
+        car.carIndex = carIndex;
+        car.participant = getAt(envelope.participants == null ? null : envelope.participants.participants, carIndex);
+        car.motion = getAt(envelope.motion == null ? null : envelope.motion.carMotionData, carIndex);
+        car.lap = getAt(envelope.lapData == null ? null : envelope.lapData.lapData, carIndex);
+        car.setup = getAt(envelope.carSetups == null ? null : envelope.carSetups.carSetups, carIndex);
+        car.telemetry = getAt(envelope.carTelemetry == null ? null : envelope.carTelemetry.carTelemetryData, carIndex);
+        car.status = getAt(envelope.carStatus == null ? null : envelope.carStatus.carStatusData, carIndex);
+        car.damage = getAt(envelope.carDamage == null ? null : envelope.carDamage.carDamageData, carIndex);
+        car.history = envelope.sessionHistoryByCar != null ? envelope.sessionHistoryByCar.get(carIndex) : null;
+        car.tyreSets = envelope.tyreSetsByCar != null ? envelope.tyreSetsByCar.get(carIndex) : null;
+        car.normalized = buildRawNormalizedCar(envelope, carIndex, source);
+        return car;
     }
 
     private static CarEnvelope buildCarEnvelope(
@@ -127,6 +250,98 @@ public final class TelemetryParser {
             boolean showSetup,
             boolean showDamage,
             boolean showTireWear
+    ) {
+        PacketModels.ParticipantData participant = getAt(envelope.participants == null ? null : envelope.participants.participants, carIndex);
+        PacketModels.LapData lap = getAt(envelope.lapData == null ? null : envelope.lapData.lapData, carIndex);
+        PacketModels.CarTelemetryData telemetry = getAt(envelope.carTelemetry == null ? null : envelope.carTelemetry.carTelemetryData, carIndex);
+        PacketModels.CarStatusData status = getAt(envelope.carStatus == null ? null : envelope.carStatus.carStatusData, carIndex);
+        PacketModels.CarDamageData damage = getAt(envelope.carDamage == null ? null : envelope.carDamage.carDamageData, carIndex);
+        PacketModels.PacketSessionHistoryData history = envelope.sessionHistoryByCar != null
+                ? envelope.sessionHistoryByCar.get(carIndex)
+                : null;
+        PacketModels.PacketTyreSetsData tyreSets = envelope.tyreSetsByCar != null
+                ? envelope.tyreSetsByCar.get(carIndex)
+                : null;
+
+        NormalizedCar out = new NormalizedCar();
+        out.index = carIndex;
+        out.name = participant != null ? participant.name : null;
+        out.teamId = participant != null ? participant.teamId : null;
+        out.yourTelemetry = participant != null ? participant.yourTelemetry : null;
+        out.aiControlled = participant != null ? participant.aiControlled : null;
+        out.position = lap != null ? lap.position : null;
+        out.currentLapNum = lap != null ? lap.currentLapNum : null;
+        out.lapDistance = lap != null ? lap.lapDistance : null;
+        out.speed = telemetry != null ? telemetry.speed : null;
+        out.throttle = telemetry != null ? telemetry.throttle : null;
+        out.brake = telemetry != null ? telemetry.brake : null;
+        out.steering = telemetry != null ? telemetry.steering : null;
+        out.gear = telemetry != null ? telemetry.gear : null;
+        out.brakeTemp = telemetry != null ? telemetry.brakeTemp : out.brakeTemp;
+        out.tireSurfaceTemp = telemetry != null ? telemetry.tireSurfaceTemp : out.tireSurfaceTemp;
+        out.tireInnerTemp = telemetry != null ? telemetry.tireInnerTemp : out.tireInnerTemp;
+        out.tirePressure = telemetry != null ? telemetry.tirePressure : out.tirePressure;
+        out.surfaceType = telemetry != null ? telemetry.surfaceType : out.surfaceType;
+        out.drsActivated = telemetry != null ? telemetry.drs != null && telemetry.drs != 0 : null;
+        out.lastLapTime = lap != null ? lap.lastLapTime : null;
+        out.bestLapTime = lap != null ? lap.bestLapTime : null;
+        out.sector1TimeMs = lap != null ? lap.sector1TimeMs : null;
+        out.sector2TimeMs = lap != null ? lap.sector2TimeMs : null;
+        out.currentSector = lap != null ? lap.currentSector : null;
+        out.deltaToCarInFront = lap != null ? lap.deltaToCarInFront : null;
+        out.deltaToRaceLeader = lap != null ? lap.deltaToRaceLeader : null;
+        out.pitStatus = lap != null ? lap.pitStatus : null;
+        out.driverStatus = lap != null ? lap.driverStatus : null;
+        out.resultStatus = lap != null ? lap.resultStatus : null;
+        out.numPitStops = lap != null ? lap.numPitStops : null;
+        out.pitStopTimer = lap != null ? lap.pitStopTimer : null;
+        out.pitLaneTime = lap != null ? lap.pitLaneTime : null;
+        out.penalties = lap != null ? lap.penalties : null;
+        out.totalWarnings = lap != null ? lap.totalWarnings : null;
+        out.cornerCuttingWarnings = lap != null ? lap.cornerCuttingWarnings : null;
+        out.numUnservedDriveThroughs = lap != null ? lap.numUnservedDriveThroughs : null;
+        out.numUnservedStopGoPenalties = lap != null ? lap.numUnservedStopGoPenalties : null;
+        out.lapInvalid = lap != null ? lap.lapInvalid : null;
+        out.actualTyreCompound = status != null ? status.actualTyreCompound : null;
+        out.tireAge = status != null ? status.tireAge : null;
+        out.bestSector1Ms = history != null ? history.bestSector1Ms : null;
+        out.bestSector2Ms = history != null ? history.bestSector2Ms : null;
+        out.bestSector3Ms = history != null ? history.bestSector3Ms : null;
+        out.tireCompound = resolveTireCompound(source, status);
+        out.stintHistory = source != null && source.normalized != null ? source.normalized.stintHistory : new ArrayList<>();
+        out.dynamics = source != null && source.normalized != null ? source.normalized.dynamics : new ArrayList<>();
+        out.availableSets = buildTyreSetBriefs(tyreSets, source);
+        out.ersActualPct = source != null && source.normalized != null ? source.normalized.ersActualPct : null;
+        out.ersActualReady = source != null && source.normalized != null ? source.normalized.ersActualReady : null;
+        out.ersEstimatePct = source != null && source.normalized != null ? source.normalized.ersEstimatePct : null;
+        out.ersEstimateReady = source != null && source.normalized != null ? source.normalized.ersEstimateReady : null;
+
+        if (status != null) {
+            out.fuelInTank = status.fuelInTank;
+            out.fuelCapacity = status.fuelCapacity;
+            out.fuelRemainingLaps = status.fuelRemainingLaps;
+            out.fuelMix = status.fuelMix;
+            out.brakeBias = status.brakeBias;
+            out.ersStoreEnergy = status.ersStoreEnergy;
+            out.ersDeployMode = status.ersDeployMode;
+            out.ersDeployedThisLap = status.ersDeployedThisLap;
+            out.ersHarvestedMGUK = status.ersHarvestedMGUK;
+            out.ersHarvestedMGUH = status.ersHarvestedMGUH;
+        }
+
+        if (damage != null) {
+            out.damage = compactDamage(damage);
+            out.tireWear = damage.tireWear;
+        }
+
+        out.setup = getAt(envelope.carSetups == null ? null : envelope.carSetups.carSetups, carIndex);
+        return out;
+    }
+
+    private static NormalizedCar buildRawNormalizedCar(
+            FullTelemetryEnvelope envelope,
+            int carIndex,
+            CarEnvelope source,
     ) {
         PacketModels.ParticipantData participant = getAt(envelope.participants == null ? null : envelope.participants.participants, carIndex);
         PacketModels.LapData lap = getAt(envelope.lapData == null ? null : envelope.lapData.lapData, carIndex);
@@ -232,6 +447,19 @@ public final class TelemetryParser {
         return out;
     }
 
+    private static PacketModels.PacketCarSetupData normalizeCarSetups(
+            PacketModels.PacketCarSetupData input
+    ) {
+        if (input == null) {
+            return null;
+        }
+        PacketModels.PacketCarSetupData output = new PacketModels.PacketCarSetupData();
+        for (int i = 0; i < input.carSetups.size(); i++) {
+            output.carSetups.add(normalizeSetup(input.carSetups.get(i)));
+        }
+        return output;
+    }
+
     private static PacketModels.PacketCarSetupData filterCarSetups(
             PacketModels.PacketCarSetupData input,
             PacketModels.PacketParticipantsData participants,
@@ -259,31 +487,7 @@ public final class TelemetryParser {
         }
         PacketModels.PacketCarStatusData output = new PacketModels.PacketCarStatusData();
         for (int i = 0; i < input.carStatusData.size(); i++) {
-            PacketModels.CarStatusData status = input.carStatusData.get(i);
-            boolean showPublicOrSelf = canExposePublicOrSelfForMode(mode, i, playerCarIndex);
-            boolean showERSEnergy = canExposeERSEnergyForMode(mode, i, playerCarIndex);
-            if (showPublicOrSelf) {
-                output.carStatusData.add(status);
-            } else {
-                PacketModels.CarStatusData filtered = copyStatus(status);
-                if (!showPublicOrSelf) {
-                    filtered.fuelInTank = null;
-                    filtered.fuelCapacity = null;
-                    filtered.fuelRemainingLaps = null;
-                    filtered.fuelMix = null;
-                    filtered.brakeBias = null;
-                }
-                if (!showERSEnergy) {
-                    filtered.ersStoreEnergy = null;
-                }
-                if (!showPublicOrSelf) {
-                    filtered.ersDeployMode = null;
-                    filtered.ersHarvestedMGUK = null;
-                    filtered.ersHarvestedMGUH = null;
-                    filtered.ersDeployedThisLap = null;
-                }
-                output.carStatusData.add(filtered);
-            }
+            output.carStatusData.add(filterCarStatusEntry(input.carStatusData.get(i), mode, playerCarIndex, i));
         }
         return output;
     }
@@ -298,19 +502,70 @@ public final class TelemetryParser {
         }
         PacketModels.PacketCarDamageData output = new PacketModels.PacketCarDamageData();
         for (int i = 0; i < input.carDamageData.size(); i++) {
-            boolean showPublicOrSelf = canExposePublicOrSelfForMode(mode, i, playerCarIndex);
-            boolean showDamage = canExposeDamageForMode(mode, i, playerCarIndex);
-            if (showPublicOrSelf) {
-                output.carDamageData.add(input.carDamageData.get(i));
-            } else if (showDamage) {
-                PacketModels.CarDamageData filtered = copyDamage(input.carDamageData.get(i));
-                filtered.tireWear = new int[] {0, 0, 0, 0};
-                output.carDamageData.add(filtered);
-            } else {
-                output.carDamageData.add(new PacketModels.CarDamageData());
-            }
+            PacketModels.CarDamageData filtered = filterCarDamageEntry(input.carDamageData.get(i), mode, playerCarIndex, i);
+            output.carDamageData.add(filtered != null ? filtered : new PacketModels.CarDamageData());
         }
         return output;
+    }
+
+    private static PacketModels.CarStatusData filterCarStatusEntry(
+            PacketModels.CarStatusData input,
+            ParseMode mode,
+            Integer playerCarIndex,
+            int carIndex
+    ) {
+        boolean showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex);
+        boolean showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex);
+        if (showPublicOrSelf) {
+            return copyStatus(input);
+        }
+        PacketModels.CarStatusData filtered = copyStatus(input);
+        filtered.fuelInTank = null;
+        filtered.fuelCapacity = null;
+        filtered.fuelRemainingLaps = null;
+        filtered.fuelMix = null;
+        filtered.brakeBias = null;
+        filtered.ersDeployMode = null;
+        filtered.ersHarvestedMGUK = null;
+        filtered.ersHarvestedMGUH = null;
+        filtered.ersDeployedThisLap = null;
+        if (!showERSEnergy) {
+            filtered.ersStoreEnergy = null;
+        }
+        return filtered;
+    }
+
+    private static PacketModels.CarDamageData filterCarDamageEntry(
+            PacketModels.CarDamageData input,
+            ParseMode mode,
+            Integer playerCarIndex,
+            int carIndex
+    ) {
+        boolean showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex);
+        boolean showDamage = canExposeDamageForMode(mode, carIndex, playerCarIndex);
+        if (showPublicOrSelf) {
+            return copyDamage(input);
+        }
+        if (showDamage) {
+            PacketModels.CarDamageData filtered = copyDamage(input);
+            filtered.tireWear = new int[] {0, 0, 0, 0};
+            return filtered;
+        }
+        return null;
+    }
+
+    private static boolean isEmptyDamage(PacketModels.CarDamageData input) {
+        return input.tireWear == null
+                && input.tiresDamage == null
+                && input.brakesDamage == null
+                && input.frontLeftWingDamage == null
+                && input.frontRightWingDamage == null
+                && input.rearWingDamage == null
+                && input.floorDamage == null
+                && input.diffuserDamage == null
+                && input.sidepodDamage == null
+                && input.gearboxDamage == null
+                && input.engineDamage == null;
     }
 
     private static PacketModels.CarStatusData copyStatus(PacketModels.CarStatusData input) {

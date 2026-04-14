@@ -1,76 +1,56 @@
 # JavaScript
 
-이 패키지는 JavaScript에서 `FullTelemetryEnvelope`를 기준으로 모드별 visibility parsing을 적용하는 라이브러리입니다.
+JavaScript telemetry model library for the shared `FullTelemetryEnvelope`.
 
-## 설치
-
-```bash
-npm install
-npm run check
-```
-
-## import
+## Import
 
 ```js
 import {
-  FullTelemetryEnvelope,
-  ParseMode,
-  ParseOptions,
   parseEnvelope,
+  getVisibleEnvelope,
+  getVisibleNormalizedCar,
 } from "./src/index.js";
 ```
 
-## 예제
+## API
+
+- models: `FullTelemetryEnvelope`, `CarEnvelope`, `NormalizedCar`
+- modes: `ParseMode.PUBLIC`, `ParseMode.STRICT`, `ParseMode.FRC`, `ParseMode.DRIVERS`
+- full parse: `parseEnvelope(input)`
+- visibility getters: `getVisibleEnvelope`, `getVisibleCarEnvelope`, `getVisibleNormalizedCar`, `getVisibleCarStatus`, `getVisibleCarDamage`, `getVisibleCarSetup`
+
+## Example
 
 ```js
 import {
-  FullTelemetryEnvelope,
-  ParseMode,
-  ParseOptions,
   parseEnvelope,
+  getVisibleEnvelope,
+  getVisibleNormalizedCar,
+  ParseMode,
 } from "./src/index.js";
 
-const env = new FullTelemetryEnvelope({
-  capturedAt: new Date(),
-  header: {
-    playerCarIndex: 0,
-  },
-  participants: {
-    participants: [
-      { name: "You", teamId: 1, yourTelemetry: 1 },
-      { name: "Other", teamId: 2, yourTelemetry: 0 },
-    ],
-  },
-});
-
-const parsed = parseEnvelope(
-  env,
-  new ParseOptions({
-    mode: ParseMode.STRICT,
-  }),
-);
-
-console.log(parsed.cars[0].normalized.name);
+const parsed = parseEnvelope(env);
+const strictView = getVisibleEnvelope(parsed, { mode: ParseMode.STRICT });
+const replayView = getVisibleEnvelope(parsed, { mode: ParseMode.PUBLIC });
+const otherCar = getVisibleNormalizedCar(parsed, 1, { mode: ParseMode.DRIVERS });
 ```
 
-## 모드
+## Visibility Modes
 
-| 데이터 영역 | `ParseMode.PUBLIC` | `ParseMode.STRICT` | `ParseMode.FRC` | `ParseMode.DRIVERS` |
+| Data area | `PUBLIC` | `STRICT` | `FRC` | `DRIVERS` |
 | --- | --- | --- | --- | --- |
-| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
-| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
-| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
-| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
-| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
-| `ersStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 | 본인 차량만 |
-| `drsActivated` | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
-| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
-| `tireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
-| `ersActualPct` / `ersEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
+| Base telemetry | all cars | all cars | all cars | all cars |
+| Pit state | all cars | all cars | all cars | all cars |
+| Setup (`SELF_OR_AI`) | self + AI cars | self + AI cars | self + AI cars | self + AI cars |
+| Tyre compound / age | all cars | all cars | all cars | all cars |
+| Fuel, brake bias, ERS deploy/harvest | all cars | self only | self only | self only |
+| `ersStoreEnergy` | all cars | self only | all cars | self only |
+| `drsActivated` | all cars | self only | all cars | all cars |
+| Car damage | all cars | self only | all cars | all cars |
+| `tireWear` | all cars | self only | self only | self only |
+| `ersActualPct` / `ersEstimatePct` | all cars | self only | self only | self only |
 
-## 참고
+## Notes
 
-- setup 노출은 `aiControlled` 차량에 한해 유지됩니다.
-- `FRC`는 `STRICT` 기반에 `ersStoreEnergy`, `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `tireWear`는 추가 공개하지 않습니다.
-- `DRIVERS`는 `STRICT` 기반에 `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `ersStoreEnergy`, `tireWear`, ERS 퍼센트는 추가 공개하지 않습니다.
-- 이 패키지는 바이트 단위 UDP parser가 아니라, envelope 후처리/정규화 레이어입니다.
+- `parseEnvelope` keeps the full parsed data.
+- Use the visibility getters when exposing data to consumers with different permissions.

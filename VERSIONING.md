@@ -1,84 +1,34 @@
 # Versioning Policy
 
-이 저장소는 `Semantic Versioning` 형식을 따릅니다.
+This repository follows semantic versioning with tags:
 
-- 태그 형식: `vMAJOR.MINOR.PATCH`
-- 현재 기준선: `v0.2.0`
-- 기본 브랜치: `main`
+- tag format: `vMAJOR.MINOR.PATCH`
+- current baseline: `v0.3.0`
+- default branch: `main`
 
-## 현재 운영 원칙
+## Rules While Still in `0.x`
 
-`v1.0.0` 전까지도 버전 규칙은 최대한 엄격하게 유지합니다. 다만 아직 FRC 전용 노출 규칙과 일부 모델 정의가 확정되지 않았기 때문에, 큰 구조 변화 가능성은 `MINOR`에서 처리합니다.
+Until `v1.0.0`, this repository treats meaningful model or visibility changes as `MINOR`.
 
-즉, 현재 단계에서는:
+- `PATCH`: bug fixes, docs-only fixes, build-only fixes, or compatible cleanup
+- `MINOR`: new fields, new helper APIs, new visibility modes, or structural changes that keep the library direction but expand behavior
+- `MAJOR`: import/package breaks, removed public APIs, renamed core fields, or incompatible serialization changes
 
-- `PATCH`: 하위 호환 유지가 확실한 수정
-- `MINOR`: 새 필드/새 동작/새 언어 지원 같은 기능 추가, 또는 구조 조정
-- `MAJOR`: 저장소 사용 방식 자체가 바뀌는 수준의 큰 변경
+## Tag-Only Releases
 
-## 태그 운영 원칙
+This repository uses git tags as releases.
 
-- 이 저장소의 릴리스 기준은 Git 태그입니다.
-- `vX.Y.Z` 태그를 `origin`에 push 하면 그 시점을 릴리스로 간주합니다.
-- 별도의 GitHub Release 생성은 기본 절차에 포함하지 않습니다.
-- 즉, 앞으로는 `main` 반영 + 검증 + 태그 push 까지만 수행합니다.
+Release flow:
 
-## PATCH 증가 기준
+1. merge to `main`
+2. run local verification
+3. create tag: `git tag vX.Y.Z`
+4. push tag: `git push origin vX.Y.Z`
 
-다음 변경은 `v0.1.1`, `v0.1.2`처럼 `PATCH`를 올립니다.
+Pushing the tag is the release. A separate GitHub Release is not required.
 
-- README, 예제, 배포 문서 수정
-- 테스트 추가 또는 테스트 보강
-- 빌드 산출물 동기화
-- 버그 수정
-- 직렬화 결과를 깨지 않는 내부 리팩터링
-- 기존 필드/함수/파서 모드의 의미를 바꾸지 않는 보완
+## Examples
 
-PATCH에서는 기존 사용 코드가 수정 없이 계속 동작해야 합니다.
-
-## MINOR 증가 기준
-
-다음 변경은 `v0.2.0`, `v0.3.0`처럼 `MINOR`를 올립니다.
-
-- `NormalizedCar` 등에 새 필드 추가
-- `PUBLIC` / `STRICT` / `FRC` 파서 규칙 확장
-- FRC 전용 노출 필드 추가
-- 새 언어 라이브러리 추가
-- 기존 언어의 public API 확장
-- 기존 구조는 유지하되, 사용자가 새 기능을 선택적으로 쓸 수 있게 되는 변경
-
-현재 저장소는 아직 `0.x` 단계이므로, 데이터 모델 재정리나 FRC 규칙 확정처럼 체감 영향이 큰 변경도 `MINOR`로 처리합니다.
-
-## MAJOR 증가 기준
-
-다음 변경은 `v1.0.0`, `v2.0.0`처럼 `MAJOR`를 올립니다.
-
-- 기존 필드 제거 또는 이름 변경
-- 기존 파서 모드 의미 변경
-- import/package 구조 변경으로 기존 코드가 바로 깨지는 경우
-- 직렬화 스키마가 호환되지 않게 바뀌는 경우
-- 저장소 배치나 배포 방식이 크게 바뀌는 경우
-
-## 권장 릴리스 기준
-
-당분간은 아래 기준으로 릴리스합니다.
-
-- `v0.1.x`: 문서 정리, 버그 수정, 검증/빌드 안정화
-- `v0.2.x`: FRC 전용 필드 추가, 파서 규칙 확장
-- `v0.3.x`: 실제 `dto` / `packets` 스펙 정밀화, 언어별 API 보강
-- `v1.0.0`: FRC 노출 정책과 주요 모델 구조가 고정되고, 언어별 사용 방식이 안정화된 시점
-
-## 릴리스 절차
-
-1. `main`에 변경 반영
-2. 로컬 검증 수행
-3. 버전 태그 생성: `git tag vX.Y.Z`
-4. 태그 푸시: `git push origin vX.Y.Z`
-
-태그 push 자체를 릴리스 완료로 봅니다.
-
-## 이 저장소에서의 예시
-
-- README 수정만 있으면: `v0.1.1`
-- FRC에 새 데이터 3개 추가하면: `v0.2.0`
-- `NormalizedCar` 필드명을 바꾸면: `v1.0.0`
+- docs-only update: `v0.3.1`
+- parser visibility helper expansion: `v0.4.0`
+- breaking field rename: `v1.0.0`

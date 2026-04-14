@@ -34,23 +34,103 @@ fun parseEnvelope(
     input: FullTelemetryEnvelope,
     options: ParseOptions = ParseOptions(),
 ): FullTelemetryEnvelope {
-    val mode = options.mode
-    val playerCarIndex = options.playerCarIndex ?: input.header?.playerCarIndex
     val sourceCars = input.cars.associateBy { it.carIndex }
     val output = input.copy(
-        carSetups = filterCarSetups(input.carSetups, input.participants, playerCarIndex),
-        carStatus = filterCarStatus(input.carStatus, mode, playerCarIndex),
-        carDamage = filterCarDamage(input.carDamage, mode, playerCarIndex),
+        carSetups = normalizeCarSetups(input.carSetups),
         sessionHistoryByCar = input.sessionHistoryByCar.toMap(),
         tyreSetsByCar = input.tyreSetsByCar.toMap(),
         cars = emptyList(),
         capturedAt = input.capturedAt ?: Instant.now(),
     )
-    val cars = (0 until detectCarCount(input)).map { carIndex ->
-        buildCarEnvelope(output, carIndex, sourceCars[carIndex], mode, playerCarIndex)
+    val cars = (0 until detectCarCount(output)).map { carIndex ->
+        buildRawCarEnvelope(output, carIndex, sourceCars[carIndex])
     }
     return output.copy(cars = cars)
 }
+
+fun getVisibleEnvelope(
+    input: FullTelemetryEnvelope,
+    options: ParseOptions = ParseOptions(),
+): FullTelemetryEnvelope {
+    val envelope = ensureParsedEnvelope(input)
+    val playerCarIndex = options.playerCarIndex ?: envelope.header?.playerCarIndex
+    val sourceCars = envelope.cars.associateBy { it.carIndex }
+    val output = envelope.copy(
+        carSetups = filterCarSetups(envelope.carSetups, envelope.participants, playerCarIndex),
+        carStatus = filterCarStatus(envelope.carStatus, options.mode, playerCarIndex),
+        carDamage = filterCarDamage(envelope.carDamage, options.mode, playerCarIndex),
+        sessionHistoryByCar = envelope.sessionHistoryByCar.toMap(),
+        tyreSetsByCar = envelope.tyreSetsByCar.toMap(),
+        cars = emptyList(),
+        capturedAt = envelope.capturedAt ?: Instant.now(),
+    )
+    val cars = (0 until detectCarCount(envelope)).map { carIndex ->
+        buildVisibleCarEnvelope(envelope, carIndex, sourceCars[carIndex], options.mode, playerCarIndex)
+    }
+    return output.copy(cars = cars)
+}
+
+fun getVisibleCars(
+    input: FullTelemetryEnvelope,
+    options: ParseOptions = ParseOptions(),
+): List<CarEnvelope> = getVisibleEnvelope(input, options).cars
+
+fun getVisibleCarEnvelope(
+    input: FullTelemetryEnvelope,
+    carIndex: Int,
+    options: ParseOptions = ParseOptions(),
+): CarEnvelope {
+    val envelope = ensureParsedEnvelope(input)
+    val playerCarIndex = options.playerCarIndex ?: envelope.header?.playerCarIndex
+    val source = envelope.cars.firstOrNull { it.carIndex == carIndex }
+    return buildVisibleCarEnvelope(envelope, carIndex, source, options.mode, playerCarIndex)
+}
+
+fun getVisibleNormalizedCar(
+    input: FullTelemetryEnvelope,
+    carIndex: Int,
+    options: ParseOptions = ParseOptions(),
+): NormalizedCar = getVisibleCarEnvelope(input, carIndex, options).normalized
+
+fun getVisibleCarSetup(
+    input: FullTelemetryEnvelope,
+    carIndex: Int,
+    options: ParseOptions = ParseOptions(),
+): CarSetupData? {
+    val envelope = ensureParsedEnvelope(input)
+    val playerCarIndex = options.playerCarIndex ?: envelope.header?.playerCarIndex
+    return if (canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants)) {
+        envelope.carSetups?.carSetups?.getOrNull(carIndex)
+    } else {
+        null
+    }
+}
+
+fun getVisibleCarStatus(
+    input: FullTelemetryEnvelope,
+    carIndex: Int,
+    options: ParseOptions = ParseOptions(),
+): CarStatusData? {
+    val envelope = ensureParsedEnvelope(input)
+    val playerCarIndex = options.playerCarIndex ?: envelope.header?.playerCarIndex
+    val status = envelope.carStatus?.carStatusData?.getOrNull(carIndex) ?: return null
+    return filterCarStatusEntry(status, options.mode, carIndex, playerCarIndex)
+}
+
+fun getVisibleCarDamage(
+    input: FullTelemetryEnvelope,
+    carIndex: Int,
+    options: ParseOptions = ParseOptions(),
+): CarDamageData? {
+    val envelope = ensureParsedEnvelope(input)
+    val playerCarIndex = options.playerCarIndex ?: envelope.header?.playerCarIndex
+    val damage = envelope.carDamage?.carDamageData?.getOrNull(carIndex) ?: return null
+    val filtered = filterCarDamageEntry(damage, options.mode, carIndex, playerCarIndex)
+    return if (filtered == CarDamageData()) null else filtered
+}
+
+private fun ensureParsedEnvelope(input: FullTelemetryEnvelope): FullTelemetryEnvelope =
+    if (input.cars.isNotEmpty()) input else parseEnvelope(input)
 
 private fun detectCarCount(input: FullTelemetryEnvelope): Int {
     var maxCount = input.cars.size
@@ -68,20 +148,33 @@ private fun detectCarCount(input: FullTelemetryEnvelope): Int {
     return maxCount
 }
 
-private fun buildCarEnvelope(
+private fun buildRawCarEnvelope(
+    envelope: FullTelemetryEnvelope,
+    carIndex: Int,
+    source: CarEnvelope?,
+): CarEnvelope = CarEnvelope(
+    carIndex = carIndex,
+    participant = envelope.participants?.participants?.getOrNull(carIndex),
+    motion = envelope.motion?.carMotionData?.getOrNull(carIndex),
+    lap = envelope.lapData?.lapData?.getOrNull(carIndex),
+    setup = envelope.carSetups?.carSetups?.getOrNull(carIndex),
+    telemetry = envelope.carTelemetry?.carTelemetryData?.getOrNull(carIndex),
+    status = envelope.carStatus?.carStatusData?.getOrNull(carIndex),
+    damage = envelope.carDamage?.carDamageData?.getOrNull(carIndex),
+    history = envelope.sessionHistoryByCar[carIndex],
+    tyreSets = envelope.tyreSetsByCar[carIndex],
+    normalized = buildRawNormalizedCar(envelope, carIndex, source),
+)
+
+private fun buildVisibleCarEnvelope(
     envelope: FullTelemetryEnvelope,
     carIndex: Int,
     source: CarEnvelope?,
     mode: ParseMode,
     playerCarIndex: Int?,
 ): CarEnvelope {
-    val showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex)
-    val showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex)
-    val showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex)
-    val showDRSActivated = canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex)
     val showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants)
     val showDamage = canExposeDamageForMode(mode, carIndex, playerCarIndex)
-    val showTireWear = canExposeTireWearForMode(mode, carIndex, playerCarIndex)
     return CarEnvelope(
         carIndex = carIndex,
         participant = envelope.participants?.participants?.getOrNull(carIndex),
@@ -89,36 +182,28 @@ private fun buildCarEnvelope(
         lap = envelope.lapData?.lapData?.getOrNull(carIndex),
         setup = if (showSetup) envelope.carSetups?.carSetups?.getOrNull(carIndex) else null,
         telemetry = envelope.carTelemetry?.carTelemetryData?.getOrNull(carIndex),
-        status = envelope.carStatus?.carStatusData?.getOrNull(carIndex),
-        damage = if (showDamage) envelope.carDamage?.carDamageData?.getOrNull(carIndex) else null,
+        status = envelope.carStatus?.carStatusData?.getOrNull(carIndex)?.let {
+            filterCarStatusEntry(it, mode, carIndex, playerCarIndex)
+        },
+        damage = if (showDamage) {
+            envelope.carDamage?.carDamageData?.getOrNull(carIndex)?.let {
+                filterCarDamageEntry(it, mode, carIndex, playerCarIndex).takeIf { filtered ->
+                    filtered != CarDamageData()
+                }
+            }
+        } else {
+            null
+        },
         history = envelope.sessionHistoryByCar[carIndex],
         tyreSets = envelope.tyreSetsByCar[carIndex],
-        normalized = buildNormalizedCar(
-            envelope,
-            carIndex,
-            source,
-            showPublicOrSelf,
-            showERSEnergy,
-            showERSPct,
-            showDRSActivated,
-            showSetup,
-            showDamage,
-            showTireWear,
-        ),
+        normalized = buildVisibleNormalizedCar(envelope, carIndex, source, mode, playerCarIndex),
     )
 }
 
-private fun buildNormalizedCar(
+private fun buildRawNormalizedCar(
     envelope: FullTelemetryEnvelope,
     carIndex: Int,
     source: CarEnvelope?,
-    showPublicOrSelf: Boolean,
-    showERSEnergy: Boolean,
-    showERSPct: Boolean,
-    showDRSActivated: Boolean,
-    showSetup: Boolean,
-    showDamage: Boolean,
-    showTireWear: Boolean,
 ): NormalizedCar {
     val participant = envelope.participants?.participants?.getOrNull(carIndex)
     val lap = envelope.lapData?.lapData?.getOrNull(carIndex)
@@ -147,7 +232,7 @@ private fun buildNormalizedCar(
         tireInnerTemp = telemetry?.tireInnerTemp ?: listOf(0, 0, 0, 0),
         tirePressure = telemetry?.tirePressure ?: listOf(0f, 0f, 0f, 0f),
         surfaceType = telemetry?.surfaceType ?: listOf(0, 0, 0, 0),
-        drsActivated = if (showDRSActivated) telemetry?.drs?.let { it != 0 } else null,
+        drsActivated = telemetry?.drs?.let { it != 0 },
         lastLapTime = lap?.lastLapTime,
         bestLapTime = lap?.bestLapTime,
         sector1TimeMs = lap?.sector1TimeMs,
@@ -170,29 +255,74 @@ private fun buildNormalizedCar(
         tireCompound = resolveTireCompound(source, status),
         actualTyreCompound = status?.actualTyreCompound,
         tireAge = status?.tireAge,
-        fuelInTank = if (showPublicOrSelf) status?.fuelInTank else null,
-        fuelCapacity = if (showPublicOrSelf) status?.fuelCapacity else null,
-        fuelRemainingLaps = if (showPublicOrSelf) status?.fuelRemainingLaps else null,
-        fuelMix = if (showPublicOrSelf) status?.fuelMix else null,
-        brakeBias = if (showPublicOrSelf) status?.brakeBias else null,
-        ersStoreEnergy = if (showERSEnergy) status?.ersStoreEnergy else null,
-        ersDeployMode = if (showPublicOrSelf) status?.ersDeployMode else null,
-        ersDeployedThisLap = if (showPublicOrSelf) status?.ersDeployedThisLap else null,
-        ersHarvestedMGUK = if (showPublicOrSelf) status?.ersHarvestedMGUK else null,
-        ersHarvestedMGUH = if (showPublicOrSelf) status?.ersHarvestedMGUH else null,
-        tireWear = if (showTireWear) damage?.tireWear ?: listOf(0, 0, 0, 0) else listOf(0, 0, 0, 0),
-        damage = if (showDamage) compactDamage(damage) else null,
-        setup = if (showSetup) envelope.carSetups?.carSetups?.getOrNull(carIndex) else null,
+        fuelInTank = status?.fuelInTank,
+        fuelCapacity = status?.fuelCapacity,
+        fuelRemainingLaps = status?.fuelRemainingLaps,
+        fuelMix = status?.fuelMix,
+        brakeBias = status?.brakeBias,
+        ersStoreEnergy = status?.ersStoreEnergy,
+        ersDeployMode = status?.ersDeployMode,
+        ersDeployedThisLap = status?.ersDeployedThisLap,
+        ersHarvestedMGUK = status?.ersHarvestedMGUK,
+        ersHarvestedMGUH = status?.ersHarvestedMGUH,
+        tireWear = damage?.tireWear ?: listOf(0, 0, 0, 0),
+        damage = compactDamage(damage),
+        setup = envelope.carSetups?.carSetups?.getOrNull(carIndex),
         bestSector1Ms = history?.bestSector1Ms,
         bestSector2Ms = history?.bestSector2Ms,
         bestSector3Ms = history?.bestSector3Ms,
         availableSets = buildTyreSetBriefs(tyreSets, source),
         stintHistory = source?.normalized?.stintHistory ?: emptyList(),
         dynamics = source?.normalized?.dynamics ?: emptyList(),
-        ersActualPct = if (showERSPct) source?.normalized?.ersActualPct else null,
-        ersActualReady = if (showERSPct) source?.normalized?.ersActualReady else null,
-        ersEstimatePct = if (showERSPct) source?.normalized?.ersEstimatePct else null,
-        ersEstimateReady = if (showERSPct) source?.normalized?.ersEstimateReady else null,
+        ersActualPct = source?.normalized?.ersActualPct,
+        ersActualReady = source?.normalized?.ersActualReady,
+        ersEstimatePct = source?.normalized?.ersEstimatePct,
+        ersEstimateReady = source?.normalized?.ersEstimateReady,
+    )
+}
+
+private fun buildVisibleNormalizedCar(
+    envelope: FullTelemetryEnvelope,
+    carIndex: Int,
+    source: CarEnvelope?,
+    mode: ParseMode,
+    playerCarIndex: Int?,
+): NormalizedCar {
+    val fullNormalized = source?.normalized ?: buildRawNormalizedCar(envelope, carIndex, source)
+    val showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex)
+    val showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex)
+    val showERSPct = canExposeERSPctForMode(mode, carIndex, playerCarIndex)
+    val showDRSActivated = canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex)
+    val showSetup = canExposeSelfOrAi(carIndex, playerCarIndex, envelope.participants)
+    val showDamage = canExposeDamageForMode(mode, carIndex, playerCarIndex)
+    val showTireWear = canExposeTireWearForMode(mode, carIndex, playerCarIndex)
+
+    return fullNormalized.copy(
+        drsActivated = if (showDRSActivated) fullNormalized.drsActivated else null,
+        fuelInTank = if (showPublicOrSelf) fullNormalized.fuelInTank else null,
+        fuelCapacity = if (showPublicOrSelf) fullNormalized.fuelCapacity else null,
+        fuelRemainingLaps = if (showPublicOrSelf) fullNormalized.fuelRemainingLaps else null,
+        fuelMix = if (showPublicOrSelf) fullNormalized.fuelMix else null,
+        brakeBias = if (showPublicOrSelf) fullNormalized.brakeBias else null,
+        ersStoreEnergy = if (showERSEnergy) fullNormalized.ersStoreEnergy else null,
+        ersDeployMode = if (showPublicOrSelf) fullNormalized.ersDeployMode else null,
+        ersDeployedThisLap = if (showPublicOrSelf) fullNormalized.ersDeployedThisLap else null,
+        ersHarvestedMGUK = if (showPublicOrSelf) fullNormalized.ersHarvestedMGUK else null,
+        ersHarvestedMGUH = if (showPublicOrSelf) fullNormalized.ersHarvestedMGUH else null,
+        tireWear = if (showDamage && showTireWear) fullNormalized.tireWear else listOf(0, 0, 0, 0),
+        damage = if (showDamage) fullNormalized.damage else null,
+        setup = if (showSetup) fullNormalized.setup else null,
+        ersActualPct = if (showERSPct) fullNormalized.ersActualPct else null,
+        ersActualReady = if (showERSPct) fullNormalized.ersActualReady else null,
+        ersEstimatePct = if (showERSPct) fullNormalized.ersEstimatePct else null,
+        ersEstimateReady = if (showERSPct) fullNormalized.ersEstimateReady else null,
+    )
+}
+
+private fun normalizeCarSetups(packet: PacketCarSetupData?): PacketCarSetupData? {
+    if (packet == null) return null
+    return packet.copy(
+        carSetups = packet.carSetups.map(::normalizeSetup),
     )
 }
 
@@ -217,24 +347,7 @@ private fun filterCarStatus(
     if (packet == null) return null
     return packet.copy(
         carStatusData = packet.carStatusData.mapIndexed { index, status ->
-            val showPublicOrSelf = canExposePublicOrSelfForMode(mode, index, playerCarIndex)
-            val showERSEnergy = canExposeERSEnergyForMode(mode, index, playerCarIndex)
-            if (showPublicOrSelf) {
-                status
-            } else {
-                status.copy(
-                    fuelInTank = if (showPublicOrSelf) status.fuelInTank else null,
-                    fuelCapacity = if (showPublicOrSelf) status.fuelCapacity else null,
-                    fuelRemainingLaps = if (showPublicOrSelf) status.fuelRemainingLaps else null,
-                    fuelMix = if (showPublicOrSelf) status.fuelMix else null,
-                    brakeBias = if (showPublicOrSelf) status.brakeBias else null,
-                    ersStoreEnergy = if (showERSEnergy) status.ersStoreEnergy else null,
-                    ersDeployMode = if (showPublicOrSelf) status.ersDeployMode else null,
-                    ersHarvestedMGUK = if (showPublicOrSelf) status.ersHarvestedMGUK else null,
-                    ersHarvestedMGUH = if (showPublicOrSelf) status.ersHarvestedMGUH else null,
-                    ersDeployedThisLap = if (showPublicOrSelf) status.ersDeployedThisLap else null,
-                )
-            }
+            filterCarStatusEntry(status, mode, index, playerCarIndex)
         },
     )
 }
@@ -247,13 +360,45 @@ private fun filterCarDamage(
     if (packet == null) return null
     return packet.copy(
         carDamageData = packet.carDamageData.mapIndexed { index, damage ->
-            when {
-                canExposePublicOrSelfForMode(mode, index, playerCarIndex) -> damage
-                canExposeDamageForMode(mode, index, playerCarIndex) -> damage.copy(tireWear = listOf(0, 0, 0, 0))
-                else -> CarDamageData()
-            }
+            filterCarDamageEntry(damage, mode, index, playerCarIndex)
         },
     )
+}
+
+private fun filterCarStatusEntry(
+    status: CarStatusData,
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
+): CarStatusData {
+    val showPublicOrSelf = canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex)
+    val showERSEnergy = canExposeERSEnergyForMode(mode, carIndex, playerCarIndex)
+    if (showPublicOrSelf) {
+        return status.copy()
+    }
+    return status.copy(
+        fuelInTank = null,
+        fuelCapacity = null,
+        fuelRemainingLaps = null,
+        fuelMix = null,
+        brakeBias = null,
+        ersStoreEnergy = if (showERSEnergy) status.ersStoreEnergy else null,
+        ersDeployMode = null,
+        ersHarvestedMGUK = null,
+        ersHarvestedMGUH = null,
+        ersDeployedThisLap = null,
+    )
+}
+
+private fun filterCarDamageEntry(
+    damage: CarDamageData,
+    mode: ParseMode,
+    carIndex: Int,
+    playerCarIndex: Int?,
+): CarDamageData = when {
+    canExposePublicOrSelfForMode(mode, carIndex, playerCarIndex) -> damage.copy()
+    canExposeDamageForMode(mode, carIndex, playerCarIndex) -> damage.copy(tireWear = listOf(0, 0, 0, 0))
+    else -> CarDamageData()
 }
 
 private fun canExposePublicOrSelfForMode(
