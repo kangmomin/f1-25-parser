@@ -21,7 +21,7 @@ export function parseEnvelope(input, options = {}) {
     return output;
 }
 function normalizeMode(mode) {
-    return mode === "public" || mode === "strict" || mode === "frc" ? mode : "strict";
+    return mode === "public" || mode === "strict" || mode === "frc" || mode === "drivers" ? mode : "strict";
 }
 function detectCarCount(input) {
     let maxCount = input.cars?.length ?? 0;
@@ -236,10 +236,10 @@ function canExposeERSEnergyForMode(mode, carIndex, playerCarIndex) {
     return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex) {
-    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+    return mode === "public" || mode === "frc" || mode === "drivers" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeDamageForMode(mode, carIndex, playerCarIndex) {
-    return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+    return mode === "public" || mode === "frc" || mode === "drivers" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 function canExposeTireWearForMode(mode, carIndex, playerCarIndex) {
     return mode === "public" || (playerCarIndex !== null && playerCarIndex === carIndex);

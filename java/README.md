@@ -1,6 +1,6 @@
 # Java
 
-이 라이브러리는 `FullTelemetryEnvelope`에 대해 `PUBLIC`, `STRICT`, `FRC` 파싱 모드를 적용하는 Java 모델 패키지입니다.
+이 라이브러리는 `FullTelemetryEnvelope`에 대해 `PUBLIC`, `STRICT`, `FRC`, `DRIVERS` 파싱 모드를 적용하는 Java 모델 패키지입니다.
 
 ## 패키지
 
@@ -61,21 +61,22 @@ public class Example {
 
 ## 모드
 
-| 데이터 영역 | `ParseMode.PUBLIC` | `ParseMode.STRICT` | `ParseMode.FRC` |
-| --- | --- | --- | --- |
-| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 |
-| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 |
-| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
-| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 |
-| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 |
-| `ersStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 |
-| `drsActivated` | 전체 차량 | 본인 차량만 | 전체 차량 |
-| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 |
-| `tireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 |
-| `ersActualPct` / `ersEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| 데이터 영역 | `ParseMode.PUBLIC` | `ParseMode.STRICT` | `ParseMode.FRC` | `ParseMode.DRIVERS` |
+| --- | --- | --- | --- | --- |
+| 참가자, 랩 데이터, 기본 telemetry | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
+| 타이어 컴파운드 / 수명 | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
+| `ersStoreEnergy` | 전체 차량 | 본인 차량만 | 전체 차량 | 본인 차량만 |
+| `drsActivated` | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
+| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
+| `tireWear` | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
+| `ersActualPct` / `ersEstimatePct` | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
 
 ## 참고
 
 - setup 공개 규칙은 `ParticipantData.aiControlled`를 사용합니다.
 - `ParseMode.FRC`는 `ParseMode.STRICT` 기반에 `ersStoreEnergy`, `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `tireWear`는 추가 공개하지 않습니다.
+- `ParseMode.DRIVERS`는 `ParseMode.STRICT` 기반에 `drsActivated`, 차량 데미지만 추가 공개합니다. 단 `ersStoreEnergy`, `tireWear`, ERS 퍼센트는 추가 공개하지 않습니다.
 - 현재 구현은 byte array를 직접 디코딩하지 않습니다. 이미 매핑된 envelope를 파싱하는 계층입니다.

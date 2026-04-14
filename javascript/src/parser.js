@@ -4,6 +4,7 @@ export const ParseMode = Object.freeze({
   PUBLIC: "public",
   STRICT: "strict",
   FRC: "frc",
+  DRIVERS: "drivers",
 });
 
 export class FRCParseConfig {
@@ -302,11 +303,11 @@ function canExposeERSEnergyForMode(mode, carIndex, playerCarIndex) {
 }
 
 function canExposeDRSActivatedForMode(mode, carIndex, playerCarIndex) {
-  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || mode === ParseMode.DRIVERS || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeDamageForMode(mode, carIndex, playerCarIndex) {
-  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === ParseMode.PUBLIC || mode === ParseMode.FRC || mode === ParseMode.DRIVERS || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeTireWearForMode(mode, carIndex, playerCarIndex) {

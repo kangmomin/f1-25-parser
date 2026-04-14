@@ -11,9 +11,10 @@ import (
 type ParseMode string
 
 const (
-	ParseModePublic ParseMode = "public"
-	ParseModeStrict ParseMode = "strict"
-	ParseModeFRC    ParseMode = "frc"
+	ParseModePublic  ParseMode = "public"
+	ParseModeStrict  ParseMode = "strict"
+	ParseModeFRC     ParseMode = "frc"
+	ParseModeDrivers ParseMode = "drivers"
 )
 
 // FRCConfig is a placeholder extension point for future frc-specific parsing rules.
@@ -28,9 +29,11 @@ type ParseOptions struct {
 	FRC            *FRCConfig `json:"frc,omitempty"`
 }
 
-// ParseEnvelope builds visibility-aware car views for public, strict, and frc modes.
+// ParseEnvelope builds visibility-aware car views for public, strict, frc, and drivers modes.
 // FRC currently behaves like strict, while additionally exposing ERS store energy,
 // DRS activation, and non-tyre-wear damage.
+// Drivers behaves like strict, while additionally exposing DRS activation
+// and non-tyre-wear damage.
 func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnvelope {
 	mode := normalizeParseMode(opts.Mode)
 	playerIndex, hasPlayer := resolvePlayerCarIndex(in.Header, opts)
@@ -76,7 +79,7 @@ func ParseEnvelope(in FullTelemetryEnvelope, opts ParseOptions) FullTelemetryEnv
 
 func normalizeParseMode(mode ParseMode) ParseMode {
 	switch mode {
-	case ParseModePublic, ParseModeStrict, ParseModeFRC:
+	case ParseModePublic, ParseModeStrict, ParseModeFRC, ParseModeDrivers:
 		return mode
 	default:
 		return ParseModeStrict
@@ -395,14 +398,14 @@ func shouldExposeERSEnergy(mode ParseMode, playerIndex uint8, hasPlayer bool, ca
 }
 
 func shouldExposeDRSActivated(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
-	if mode == ParseModePublic || mode == ParseModeFRC {
+	if mode == ParseModePublic || mode == ParseModeFRC || mode == ParseModeDrivers {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)
 }
 
 func shouldExposeDamage(mode ParseMode, playerIndex uint8, hasPlayer bool, carIndex int) bool {
-	if mode == ParseModePublic || mode == ParseModeFRC {
+	if mode == ParseModePublic || mode == ParseModeFRC || mode == ParseModeDrivers {
 		return true
 	}
 	return hasPlayer && carIndex == int(playerIndex)

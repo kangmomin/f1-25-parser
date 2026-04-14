@@ -410,11 +410,13 @@ public final class TelemetryParser {
     }
 
     private static boolean canExposeDRSActivatedForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {
-        return mode == ParseMode.PUBLIC || mode == ParseMode.FRC || (playerCarIndex != null && playerCarIndex == carIndex);
+        return mode == ParseMode.PUBLIC || mode == ParseMode.FRC || mode == ParseMode.DRIVERS
+                || (playerCarIndex != null && playerCarIndex == carIndex);
     }
 
     private static boolean canExposeDamageForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {
-        return mode == ParseMode.PUBLIC || mode == ParseMode.FRC || (playerCarIndex != null && playerCarIndex == carIndex);
+        return mode == ParseMode.PUBLIC || mode == ParseMode.FRC || mode == ParseMode.DRIVERS
+                || (playerCarIndex != null && playerCarIndex == carIndex);
     }
 
     private static boolean canExposeTireWearForMode(ParseMode mode, int carIndex, Integer playerCarIndex) {

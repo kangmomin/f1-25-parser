@@ -17,6 +17,7 @@ enum class ParseMode {
     PUBLIC,
     STRICT,
     FRC,
+    DRIVERS,
 }
 
 data class FRCParseConfig(
@@ -271,13 +272,13 @@ private fun canExposeDRSActivatedForMode(
     mode: ParseMode,
     carIndex: Int,
     playerCarIndex: Int?,
-): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || mode == ParseMode.DRIVERS || playerCarIndex == carIndex
 
 private fun canExposeDamageForMode(
     mode: ParseMode,
     carIndex: Int,
     playerCarIndex: Int?,
-): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || playerCarIndex == carIndex
+): Boolean = mode == ParseMode.PUBLIC || mode == ParseMode.FRC || mode == ParseMode.DRIVERS || playerCarIndex == carIndex
 
 private fun canExposeTireWearForMode(
     mode: ParseMode,

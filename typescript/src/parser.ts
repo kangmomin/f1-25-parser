@@ -12,7 +12,7 @@ import type {
 } from "./packets.js";
 import type { CarEnvelope, FullTelemetryEnvelope, NormalizedCar } from "./telemetrymodel.js";
 
-export type ParseMode = "public" | "strict" | "frc";
+export type ParseMode = "public" | "strict" | "frc" | "drivers";
 
 export interface FRCParseConfig {
   reservedFields?: string[];
@@ -57,7 +57,7 @@ export function parseEnvelope(
 }
 
 function normalizeMode(mode?: ParseMode): ParseMode {
-  return mode === "public" || mode === "strict" || mode === "frc" ? mode : "strict";
+  return mode === "public" || mode === "strict" || mode === "frc" || mode === "drivers" ? mode : "strict";
 }
 
 function detectCarCount(input: FullTelemetryEnvelope): number {
@@ -348,7 +348,7 @@ function canExposeDRSActivatedForMode(
   carIndex: number,
   playerCarIndex: number | null,
 ): boolean {
-  return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === "public" || mode === "frc" || mode === "drivers" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeDamageForMode(
@@ -356,7 +356,7 @@ function canExposeDamageForMode(
   carIndex: number,
   playerCarIndex: number | null,
 ): boolean {
-  return mode === "public" || mode === "frc" || (playerCarIndex !== null && playerCarIndex === carIndex);
+  return mode === "public" || mode === "frc" || mode === "drivers" || (playerCarIndex !== null && playerCarIndex === carIndex);
 }
 
 function canExposeTireWearForMode(

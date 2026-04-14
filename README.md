@@ -23,7 +23,7 @@
 - `CarEnvelope`
 - `NormalizedCar`
 - `CanExposePublicOrSelf` 대응 헬퍼
-- `PUBLIC` / `STRICT` / `FRC` 파싱 모드
+- `PUBLIC` / `STRICT` / `FRC` / `DRIVERS` 파싱 모드
 - 모드별 `parse/ParseEnvelope/parseEnvelope` 파서
 - 현재 스니펫이 참조하는 최소 `dto`, `packets` 타입
 
@@ -72,10 +72,13 @@
   - `CarEnvelope`, `NormalizedCar`, `PitwallState`
   - UI용 정규화 차량 뷰, 타이어 세트 요약, 스틴트 이력, dynamics, ERS 퍼센트 추정값
 
-- FRC 모드에서 현재 추가로 보는 값
+- FRC / DRIVERS 모드에서 현재 추가로 보는 값
   - `FRC`는 `STRICT`를 기본으로 유지합니다.
   - 추가로 전체 차량의 `ersStoreEnergy`, `drsActivated`, 차량 데미지(`damage`)를 노출합니다.
   - 단 `tireWear`는 `FRC`에서도 본인 차량만 유지합니다.
+  - `DRIVERS`는 `STRICT`를 기본으로 유지합니다.
+  - 추가로 전체 차량의 `drsActivated`, 차량 데미지(`damage`)를 노출합니다.
+  - 단 `ersStoreEnergy`, `tireWear`, ERS 퍼센트는 `DRIVERS`에서도 본인 차량만 유지합니다.
 
 - 가시성 분류
   - `BOTH`: 항상 수신/노출 가능
@@ -85,18 +88,18 @@
 
 ## 모드별 파싱 요약
 
-| 데이터 영역 | `public` | `strict` | `frc` |
-| --- | --- | --- | --- |
-| 참가자, 랩 데이터, 기본 telemetry (`participants`, `lapData`, `carTelemetry`) | 전체 차량 | 전체 차량 | 전체 차량 |
-| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 |
-| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
-| 타이어 컴파운드 / 수명 (`tireCompound`, `actualTyreCompound`, `tireAge`) | 전체 차량 | 전체 차량 | 전체 차량 |
-| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 |
-| ERS 잔량 (`ersStoreEnergy`) | 전체 차량 | 본인 차량만 | 전체 차량 |
-| DRS 활성화 (`drsActivated`) | 전체 차량 | 본인 차량만 | 전체 차량 |
-| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 |
-| 타이어 마모 (`tireWear`) | 전체 차량 | 본인 차량만 | 본인 차량만 |
-| ERS 퍼센트 (`ersActualPct`, `ersEstimatePct`) | 전체 차량 | 본인 차량만 | 본인 차량만 |
+| 데이터 영역 | `public` | `strict` | `frc` | `drivers` |
+| --- | --- | --- | --- | --- |
+| 참가자, 랩 데이터, 기본 telemetry (`participants`, `lapData`, `carTelemetry`) | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 피트 상태 (`pitStatus`, `pitStopTimer`, `pitLaneTime`) | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| setup (`SELF_OR_AI`) | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 | 본인 + AI 차량 |
+| 타이어 컴파운드 / 수명 (`tireCompound`, `actualTyreCompound`, `tireAge`) | 전체 차량 | 전체 차량 | 전체 차량 | 전체 차량 |
+| 연료, 브레이크 바이어스, ERS deploy/harvest | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
+| ERS 잔량 (`ersStoreEnergy`) | 전체 차량 | 본인 차량만 | 전체 차량 | 본인 차량만 |
+| DRS 활성화 (`drsActivated`) | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
+| 차량 데미지 (`carDamage`, `normalized.damage`) | 전체 차량 | 본인 차량만 | 전체 차량 | 전체 차량 |
+| 타이어 마모 (`tireWear`) | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
+| ERS 퍼센트 (`ersActualPct`, `ersEstimatePct`) | 전체 차량 | 본인 차량만 | 본인 차량만 | 본인 차량만 |
 
 ## 현재 가정
 
@@ -104,6 +107,7 @@
 - `restricted(strict)` 해석과 `PUBLIC_OR_SELF`, `SELF_OR_AI` 노출 규칙은 사용자가 준 주석을 그대로 따릅니다.
 - 실제 F1 22/23/25 전체 UDP 스펙 전체를 재현한 라이브러리는 아닙니다. 필요한 필드가 더 있으면 각 `packets` 모델에 확장하면 됩니다.
 - `FRC` 모드는 현재 `STRICT` 기반이며, 추가로 `ersStoreEnergy`, `drsActivated`, 차량 데미지를 전체 차량에 노출합니다. 단 `tireWear`와 ERS 퍼센트는 플레이어 차량 기준으로만 유지합니다.
+- `DRIVERS` 모드는 현재 `STRICT` 기반이며, 추가로 `drsActivated`, 차량 데미지를 전체 차량에 노출합니다. 단 `ersStoreEnergy`, `tireWear`, ERS 퍼센트는 플레이어 차량 기준으로만 유지합니다.
 
 ## 검증
 
